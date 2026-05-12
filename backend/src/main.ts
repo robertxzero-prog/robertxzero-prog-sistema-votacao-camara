@@ -11,6 +11,10 @@ function obterOrigensPermitidas() {
     return [/^http:\/\/localhost:\d+$/, /^http:\/\/127\.0\.0\.1:\d+$/];
   }
 
+  if (raw === '*') {
+    return ['*'];
+  }
+
   return raw
     .split(',')
     .map((item) => item.trim())
@@ -24,6 +28,11 @@ async function bootstrap() {
   app.enableCors({
     origin: (origin, callback) => {
       if (!origin) {
+        callback(null, true);
+        return;
+      }
+
+      if (corsOrigens.includes('*')) {
         callback(null, true);
         return;
       }
