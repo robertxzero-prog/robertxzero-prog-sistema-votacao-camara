@@ -7,6 +7,8 @@ import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class ConfiguracaoService {
+  private ultimoSyncLicencaSaasEm = 0;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditoriaService: AuditoriaService,
@@ -39,7 +41,72 @@ export class ConfiguracaoService {
     return config;
   }
 
+  private async sincronizarLicencaComSaasSePossivel() {
+    const masterApi = (process.env.MASTER_API_URL || '').trim();
+    const sharedKey = (process.env.ONBOARDING_SHARED_KEY || '').trim();
+    if (!masterApi || !sharedKey) return;
+
+    const agora = Date.now();
+    if (agora - this.ultimoSyncLicencaSaasEm < 15000) {
+      return;
+    }
+    this.ultimoSyncLicencaSaasEm = agora;
+
+    const atual = await this.obterRegistroCamaraAtual();
+    const codigo = (atual.codigo_instancia || '').trim().toLowerCase();
+    if (!codigo) return;
+
+    try {
+      const resp = await fetch(
+        `${masterApi.replace(/\/$/, '')}/configuracao/licenca/sync-publico`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-onboarding-key': sharedKey,
+          },
+          body: JSON.stringify({ codigo_instancia: codigo }),
+        },
+      );
+
+      if (!resp.ok) return;
+      const data: any = await resp.json();
+      if (!data?.ok || !data?.config) return;
+
+      await this.prisma.camara_configuracoes.update({
+        where: { id: atual.id },
+        data: {
+          licenca_status: data.config.licenca_status,
+          licenca_expira_em: data.config.licenca_expira_em
+            ? new Date(data.config.licenca_expira_em)
+            : null,
+          licenca_offline_valor:
+            typeof data.config.licenca_offline_valor === 'number'
+              ? Math.max(1, data.config.licenca_offline_valor)
+              : (atual as any).licenca_offline_valor ?? 30,
+          licenca_offline_unidade:
+            (data.config.licenca_offline_unidade ||
+              (atual as any).licenca_offline_unidade ||
+              'DIAS') as any,
+          onboarding_status:
+            data.config.licenca_status === licenca_status.ATIVA
+              ? 'APROVADO'
+              : (atual as any).onboarding_status || 'SOLICITADO',
+          onboarding_aprovado_em:
+            data.config.licenca_status === licenca_status.ATIVA
+              ? new Date()
+              : (atual as any).onboarding_aprovado_em || null,
+          licenca_ultimo_sync_em: new Date(),
+          atualizado_em: new Date(),
+        } as any,
+      });
+    } catch {
+      // Sem rede ou SaaS indisponivel: mantem estado local e segue.
+    }
+  }
+
   async validarAcessoPorLicenca() {
+    await this.sincronizarLicencaComSaasSePossivel();
     const atual = await this.obterCamara();
     const config: any = atual.config as any;
     const exigirAtivacao = process.env.REQUIRE_SAAS_ACTIVATION === 'true';
@@ -249,6 +316,40 @@ export class ConfiguracaoService {
     });
 
     return { ok: true, mensagem: 'Onboarding recebido no SaaS.', config };
+  }
+
+  async obterLicencaPublica(
+    codigoInstancia: string,
+    onboardingKey?: string | null,
+  ) {
+    const esperado = (process.env.ONBOARDING_SHARED_KEY || '').trim();
+    if (!esperado || !onboardingKey || onboardingKey !== esperado) {
+      return { ok: false, mensagem: 'Chave de onboarding invalida.' };
+    }
+
+    const codigo = (codigoInstancia || '').trim().toLowerCase();
+    if (!codigo) {
+      return { ok: false, mensagem: 'Codigo da instancia obrigatorio.' };
+    }
+
+    const config = await this.prisma.camara_configuracoes.findUnique({
+      where: { codigo_instancia: codigo },
+      select: {
+        codigo_instancia: true,
+        licenca_status: true,
+        licenca_expira_em: true,
+        licenca_offline_valor: true,
+        licenca_offline_unidade: true,
+        onboarding_status: true,
+        onboarding_aprovado_em: true,
+      },
+    });
+
+    if (!config) {
+      return { ok: false, mensagem: 'Instancia nao encontrada.' };
+    }
+
+    return { ok: true, config };
   }
 
   async atualizarCamara(body: {

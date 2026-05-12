@@ -84,6 +84,17 @@ export class ConfiguracaoController {
     );
   }
 
+  @Post('licenca/sync-publico')
+  sincronizarLicencaPublica(
+    @Body() body: { codigo_instancia: string },
+    @Headers('x-onboarding-key') onboardingKey?: string,
+  ) {
+    return this.configuracaoService.obterLicencaPublica(
+      body?.codigo_instancia || '',
+      onboardingKey || null,
+    );
+  }
+
   @Get('camaras')
   @UseGuards(AuthGuard('jwt'))
   listarCamaras(@Req() req: any) {
