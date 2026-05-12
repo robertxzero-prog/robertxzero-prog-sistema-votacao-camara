@@ -1,0 +1,310 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model cadeiras {
+  id         String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  numero     Int         @unique
+  linha      Int
+  coluna     Int
+  descricao  String?     @db.VarChar(100)
+  ativa      Boolean?    @default(true)
+  vereadores vereadores?
+}
+
+model pautas {
+  id           String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessao_id    String       @db.Uuid
+  numero_ordem Int
+  titulo       String       @db.VarChar(200)
+  descricao    String?
+  autor_id     String       @db.Uuid
+  arquivo_url  String?
+  tipo_maioria tipo_maioria @default(SIMPLES)
+  criada_em    DateTime?    @default(now()) @db.Timestamp(6)
+
+  usuarios usuarios  @relation(fields: [autor_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  sessoes  sessoes   @relation(fields: [sessao_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  votacoes votacoes[]
+}
+
+model sessoes {
+  id          String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  titulo      String          @db.VarChar(200)
+  descricao   String?
+  data_sessao DateTime        @db.Date
+  etapa_atual etapa_sessao?   @default(ABERTURA)
+  etapa_titulo String?        @db.VarChar(200)
+  etapa_descricao String?
+  orador_vereador_id String?  @db.Uuid
+  orador_tipo_fala tipo_fala_sessao?
+  orador_duracao_segundos Int?
+  orador_inicio_em DateTime?  @db.Timestamp(6)
+  hora_inicio DateTime?       @db.Timestamp(6)
+  hora_fim    DateTime?       @db.Timestamp(6)
+  status      session_status? @default(ABERTA)
+  criada_por  String          @db.Uuid
+  criado_em   DateTime?       @default(now()) @db.Timestamp(6)
+
+  pautas    pautas[]
+  presencas presencas[]
+  fila_oradores fila_oradores[]
+  orador_vereador vereadores? @relation("sessao_orador_atual", fields: [orador_vereador_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  usuarios  usuarios    @relation(fields: [criada_por], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model usuarios {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nome          String      @db.VarChar(150)
+  email         String      @unique @db.VarChar(150)
+  senha_hash    String
+  role          user_role
+  foto_url      String?
+  twofa_enabled Boolean?    @default(false)
+  twofa_secret  String?
+  twofa_configurada_em DateTime? @db.Timestamp(6)
+  ativo         Boolean?    @default(true)
+  criado_em     DateTime?   @default(now()) @db.Timestamp(6)
+  atualizado_em DateTime?   @default(now()) @db.Timestamp(6)
+
+  pautas     pautas[]
+  sessoes    sessoes[]
+  vereadores vereadores?
+  votacoes   votacoes[]
+  auditoria_eventos auditoria_eventos[]
+  auth_sessoes auth_sessoes[]
+}
+
+model auth_sessoes {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  usuario_id String @db.Uuid
+  jwt_id String @unique @db.VarChar(120)
+  device_id String? @db.VarChar(120)
+  device_nome String? @db.VarChar(160)
+  ip String? @db.VarChar(64)
+  user_agent String?
+  expira_em DateTime @db.Timestamp(6)
+  revogada_em DateTime? @db.Timestamp(6)
+  ultimo_acesso_em DateTime? @db.Timestamp(6)
+  criado_em DateTime? @default(now()) @db.Timestamp(6)
+
+  usuarios usuarios @relation(fields: [usuario_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([usuario_id, expira_em])
+}
+
+model auditoria_eventos {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  usuario_id String? @db.Uuid
+  usuario_nome String? @db.VarChar(150)
+  usuario_role user_role?
+  acao String @db.VarChar(80)
+  entidade String @db.VarChar(80)
+  entidade_id String? @db.VarChar(120)
+  detalhes Json?
+  ip String? @db.VarChar(64)
+  user_agent String?
+  hash_anterior String? @db.VarChar(128)
+  hash_evento String? @db.VarChar(128)
+  criado_em DateTime? @default(now()) @db.Timestamp(6)
+
+  usuarios usuarios? @relation(fields: [usuario_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([acao, criado_em])
+  @@index([entidade, entidade_id, criado_em])
+}
+
+model atas_assinaturas {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  votacao_id String @unique @db.Uuid
+  hash_sha256 String @db.VarChar(128)
+  assinatura_hmac String @db.VarChar(256)
+  payload_json Json
+  assinada_por String? @db.Uuid
+  assinada_em DateTime? @default(now()) @db.Timestamp(6)
+
+  votacoes votacoes @relation(fields: [votacao_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([assinada_em])
+}
+
+model camara_configuracoes {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  codigo_instancia String @unique @default("default") @db.VarChar(80)
+  nome_oficial String @default("Câmara Municipal") @db.VarChar(200)
+  nome_exibicao String? @db.VarChar(120)
+  tenant_slug String? @db.VarChar(120)
+  plano_nome String? @default("Plano Básico") @db.VarChar(120)
+  backend_url String?
+  brasao_url String?
+  cidade String? @db.VarChar(120)
+  uf String? @db.VarChar(2)
+  monitor_token_hash String? @db.VarChar(128)
+  monitor_versao String? @db.VarChar(40)
+  monitor_ip String? @db.VarChar(64)
+  monitor_user_agent String?
+  monitor_latencia_ms Int?
+  licenca_status licenca_status @default(TESTE)
+  licenca_expira_em DateTime? @db.Timestamp(6)
+  licenca_offline_valor Int? @default(30)
+  licenca_offline_unidade String? @default("DIAS") @db.VarChar(16)
+  licenca_ultimo_sync_em DateTime? @db.Timestamp(6)
+  onboarding_status String? @default("NAO_INICIADO") @db.VarChar(20)
+  onboarding_responsavel_nome String? @db.VarChar(160)
+  onboarding_responsavel_email String? @db.VarChar(160)
+  onboarding_responsavel_telefone String? @db.VarChar(40)
+  onboarding_enviado_em DateTime? @db.Timestamp(6)
+  onboarding_aprovado_em DateTime? @db.Timestamp(6)
+  ultimo_heartbeat_em DateTime? @db.Timestamp(6)
+  atualizado_em DateTime? @default(now()) @db.Timestamp(6)
+}
+
+model vereadores {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  usuario_id     String    @unique @db.Uuid
+  cadeira_id     String    @unique @db.Uuid
+  partido        String?   @db.VarChar(20)
+  cargo_mesa     cargo_mesa?
+  mandato_inicio DateTime? @db.Date
+  mandato_fim    DateTime? @db.Date
+
+  cadeiras  cadeiras    @relation(fields: [cadeira_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  usuarios  usuarios    @relation(fields: [usuario_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  votos     votos[]
+  presencas presencas[]
+  fila_oradores fila_oradores[]
+  sessoes_como_orador sessoes[] @relation("sessao_orador_atual")
+}
+
+model fila_oradores {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessao_id String @db.Uuid
+  vereador_id String @db.Uuid
+  tipo_fala tipo_fala_sessao
+  status status_fala_sessao @default(PENDENTE)
+  solicitada_em DateTime? @default(now()) @db.Timestamp(6)
+  chamada_em DateTime? @db.Timestamp(6)
+
+  sessoes sessoes @relation(fields: [sessao_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  vereadores vereadores @relation(fields: [vereador_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([sessao_id, status, solicitada_em])
+}
+
+model votacoes {
+  id           String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  pauta_id     String          @db.Uuid
+  aberta_por   String          @db.Uuid
+  aberta_em    DateTime?       @default(now()) @db.Timestamp(6)
+  encerrada_em DateTime?       @db.Timestamp(6)
+  status       votacao_status? @default(ABERTA)
+
+  usuarios usuarios @relation(fields: [aberta_por], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  pautas   pautas   @relation(fields: [pauta_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  votos    votos[]
+  atas_assinaturas atas_assinaturas?
+}
+
+model votos {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  votacao_id  String    @db.Uuid
+  vereador_id String    @db.Uuid
+  voto        tipo_voto
+  votado_em   DateTime? @default(now()) @db.Timestamp(6)
+
+  vereadores vereadores @relation(fields: [vereador_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  votacoes   votacoes   @relation(fields: [votacao_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([votacao_id, vereador_id])
+}
+
+model presencas {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessao_id   String    @db.Uuid
+  vereador_id String    @db.Uuid
+  presente_em DateTime? @default(now()) @db.Timestamp(6)
+
+  sessoes    sessoes    @relation(fields: [sessao_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  vereadores vereadores @relation(fields: [vereador_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([sessao_id, vereador_id])
+}
+
+enum session_status {
+  ABERTA
+  EM_ANDAMENTO
+  ENCERRADA
+  CANCELADA
+}
+
+enum tipo_voto {
+  SIM
+  NAO
+  ABSTENCAO
+  AUSENTE
+}
+
+enum user_role {
+  ADMIN
+  PRESIDENTE
+  VEREADOR
+  OPERADOR
+}
+
+enum votacao_status {
+  ABERTA
+  ENCERRADA
+  CANCELADA
+}
+
+enum tipo_maioria {
+  SIMPLES
+  ABSOLUTA
+  DOIS_TERCOS
+}
+
+enum etapa_sessao {
+  ABERTURA
+  LEITURA_BIBLICA
+  CHAMADA_VEREADORES
+  VERIFICACAO_QUORUM
+  LEITURA_EXPEDIENTE
+  PEQUENAS_COMUNICACOES
+  GRANDE_EXPEDIENTE
+  ORDEM_DO_DIA
+  RESULTADO
+  EXPLICACOES_PESSOAIS
+  ENCERRAMENTO
+}
+
+enum tipo_fala_sessao {
+  PEQUENAS_COMUNICACOES
+  GRANDE_EXPEDIENTE
+  ORDEM_DO_DIA
+  EXPLICACOES_PESSOAIS
+}
+
+enum status_fala_sessao {
+  PENDENTE
+  CHAMADO
+  ENCERRADO
+  CANCELADO
+}
+
+enum cargo_mesa {
+  PRESIDENTE
+  VICE_PRESIDENTE
+  SECRETARIO_GERAL
+}
+
+enum licenca_status {
+  TESTE
+  ATIVA
+  INADIMPLENTE
+  BLOQUEADA
+}
