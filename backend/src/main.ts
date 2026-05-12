@@ -4,7 +4,7 @@ import { join } from 'path';
 
 import { AppModule } from './app.module';
 
-function obterOrigensPermitidas() {
+function obterOrigensPermitidas(): Array<string | RegExp> {
   const raw = process.env.CORS_ORIGINS?.trim();
 
   if (!raw) {
