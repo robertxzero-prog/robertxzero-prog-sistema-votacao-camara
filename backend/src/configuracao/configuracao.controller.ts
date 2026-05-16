@@ -293,11 +293,13 @@ export class ConfiguracaoController {
       novo_nome?: string | null;
     },
     @Headers('x-master-admin-key') masterAdminKey?: string,
+    @Headers('x-onboarding-key') onboardingKey?: string,
     @Req() req?: any,
   ) {
     return this.configuracaoService.redefinirCredencialAdminLocal(
       body,
       masterAdminKey || null,
+      onboardingKey || null,
       {
         ip:
           req?.headers?.['x-forwarded-for']?.split?.(',')?.[0]?.trim?.() ||

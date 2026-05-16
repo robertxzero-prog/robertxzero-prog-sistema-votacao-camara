@@ -970,11 +970,14 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
       const masterInstanceAdminKey = (
         process.env.MASTER_INSTANCE_ADMIN_KEY || ''
       ).trim();
-      if (!masterInstanceAdminKey) {
+      const onboardingSharedKey = (process.env.ONBOARDING_SHARED_KEY || '').trim();
+      const chaveOperacao = masterInstanceAdminKey || onboardingSharedKey;
+      const usarFallbackOnboarding = !masterInstanceAdminKey && !!onboardingSharedKey;
+      if (!chaveOperacao) {
         return {
           ok: false,
           mensagem:
-            'MASTER_INSTANCE_ADMIN_KEY nao configurado no SaaS Master.',
+            'Configure MASTER_INSTANCE_ADMIN_KEY ou ONBOARDING_SHARED_KEY no SaaS Master.',
         };
       }
 
@@ -985,7 +988,10 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'x-master-admin-key': masterInstanceAdminKey,
+              'x-master-admin-key': chaveOperacao,
+              ...(usarFallbackOnboarding
+                ? { 'x-onboarding-key': onboardingSharedKey }
+                : {}),
             },
             body: JSON.stringify({
               codigo_instancia: codigo,
@@ -1186,10 +1192,16 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
       novo_nome?: string | null;
     },
     masterAdminKey?: string | null,
+    onboardingKey?: string | null,
     contexto?: { ip?: string | null; userAgent?: string | null },
   ) {
     const localMasterKey = (process.env.LOCAL_MASTER_ADMIN_KEY || '').trim();
-    if (!localMasterKey || !masterAdminKey || masterAdminKey !== localMasterKey) {
+    const localOnboardingKey = (process.env.ONBOARDING_SHARED_KEY || '').trim();
+    const autorizadoViaMaster =
+      !!localMasterKey && !!masterAdminKey && masterAdminKey === localMasterKey;
+    const autorizadoViaOnboarding =
+      !!localOnboardingKey && !!onboardingKey && onboardingKey === localOnboardingKey;
+    if (!autorizadoViaMaster && !autorizadoViaOnboarding) {
       return { ok: false, mensagem: 'Chave de administracao invalida.' };
     }
 
