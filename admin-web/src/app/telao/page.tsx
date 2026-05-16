@@ -127,16 +127,16 @@ export default function TelaoPage() {
   const [quorum, setQuorum] = useState<Quorum | null>(null);
   const [loading, setLoading] = useState(true);
   const [conectado, setConectado] = useState(false);
-  const [mensagem, setMensagem] = useState("Aguardando conexÃ£o realtime...");
+  const [mensagem, setMensagem] = useState("Aguardando conexão realtime...");
   const [agora, setAgora] = useState(new Date());
   const [etapaSessao, setEtapaSessao] = useState<EtapaSessao>("ABERTURA");
   const [etapaTitulo, setEtapaTitulo] = useState("");
   const [etapaDescricao, setEtapaDescricao] = useState("");
   const [oradorAtual, setOradorAtual] = useState<OradorAtual | null>(null);
   const [filaOradores, setFilaOradores] = useState<FilaOradorItem[]>([]);
-  const [nomeCamara, setNomeCamara] = useState("CÃ¢mara Municipal");
+  const [nomeCamara, setNomeCamara] = useState("Câmara Municipal");
   const [brasaoUrl, setBrasaoUrl] = useState<string | null>(null);
-  const [tituloSessaoAtual, setTituloSessaoAtual] = useState("SessÃ£o Legislativa");
+  const [tituloSessaoAtual, setTituloSessaoAtual] = useState("Sessão Legislativa");
 
   async function carregarQuorum(sessaoId?: string) {
     if (!sessaoId) {
@@ -478,7 +478,7 @@ export default function TelaoPage() {
     return (
       <div className="mb-6 rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-2xl">
         <p className="text-sm font-bold uppercase tracking-widest text-slate-400">
-          Linha do tempo da sessÃ£o
+          Linha do tempo da sessão
         </p>
         <PainelEtapaAtualPremium />
       </div>
@@ -572,8 +572,8 @@ export default function TelaoPage() {
       return (
         <div className="mt-5 rounded-3xl border border-cyan-400/30 bg-cyan-900/20 p-8">
           <p className="text-sm font-bold uppercase tracking-widest text-cyan-300">Abertura oficial</p>
-          <p className={`${baseTitulo} mt-2 text-cyan-100`}>{titulo || "DeclaraÃ§Ã£o de abertura da sessÃ£o"}</p>
-          <p className={`${baseDescricao} text-cyan-50/90`}>{descricao || "Os trabalhos legislativos estÃ£o sendo iniciados."}</p>
+          <p className={`${baseTitulo} mt-2 text-cyan-100`}>{titulo || "Declaração de abertura da sessão"}</p>
+          <p className={`${baseDescricao} text-cyan-50/90`}>{descricao || "Os trabalhos legislativos estão sendo iniciados."}</p>
         </div>
       );
     }

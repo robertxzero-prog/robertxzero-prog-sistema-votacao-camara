@@ -1,18 +1,38 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { licenca_status } from '@prisma/client';
 import { createHash, randomBytes } from 'crypto';
+import * as bcrypt from 'bcrypt';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { AuditoriaContexto } from '../auditoria/auditoria.types';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
-export class ConfiguracaoService {
+export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
   private ultimoSyncLicencaSaasEm = 0;
+  private heartbeatTimer: NodeJS.Timeout | null = null;
+  private heartbeatRodando = false;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditoriaService: AuditoriaService,
   ) {}
+
+  onModuleInit() {
+    const intervalMs = Math.max(
+      10000,
+      Number(process.env.SAAS_HEARTBEAT_INTERVAL_MS || 30000),
+    );
+    this.heartbeatTimer = setInterval(() => {
+      this.enviarHeartbeatSaasSePossivel().catch(() => undefined);
+    }, intervalMs);
+  }
+
+  onModuleDestroy() {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
+  }
 
   private hashMonitorToken(token: string) {
     const salt = process.env.MONITOR_TOKEN_SALT || 'monitor-default-salt';
@@ -71,7 +91,19 @@ export class ConfiguracaoService {
 
       if (!resp.ok) return;
       const data: any = await resp.json();
-      if (!data?.ok || !data?.config) return;
+      if (!data?.ok || !data?.config) {
+        const mensagem = String(data?.mensagem || '').toLowerCase();
+        if (mensagem.includes('instancia nao encontrada')) {
+          await this.prisma.camara_configuracoes.update({
+            where: { id: atual.id },
+            data: {
+              licenca_status: licenca_status.BLOQUEADA,
+              atualizado_em: new Date(),
+            } as any,
+          });
+        }
+        return;
+      }
 
       await this.prisma.camara_configuracoes.update({
         where: { id: atual.id },
@@ -102,6 +134,33 @@ export class ConfiguracaoService {
       });
     } catch {
       // Sem rede ou SaaS indisponivel: mantem estado local e segue.
+    }
+  }
+
+  private async enviarHeartbeatSaasSePossivel() {
+    if (this.heartbeatRodando) return;
+    this.heartbeatRodando = true;
+    try {
+      const masterApi = (process.env.MASTER_API_URL || '').trim();
+      const monitorToken = (process.env.MONITOR_TOKEN || '').trim();
+      if (!masterApi || !monitorToken) return;
+
+      const atual = await this.obterRegistroCamaraAtual();
+      const codigo = (atual.codigo_instancia || '').trim().toLowerCase();
+      if (!codigo) return;
+
+      await fetch(`${masterApi.replace(/\/$/, '')}/configuracao/monitor/heartbeat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          codigo_instancia: codigo,
+          monitor_token: monitorToken,
+          versao: process.env.APP_VERSION || 'local-dev',
+          latencia_ms: 0,
+        }),
+      });
+    } finally {
+      this.heartbeatRodando = false;
     }
   }
 
@@ -160,6 +219,7 @@ export class ConfiguracaoService {
   }
 
   async obterStatusOnboarding() {
+    await this.sincronizarLicencaComSaasSePossivel();
     const atual = await this.obterCamara();
     const c: any = atual.config;
     return {
@@ -174,10 +234,26 @@ export class ConfiguracaoService {
     };
   }
 
+  async sincronizarLicencaAgora() {
+    this.ultimoSyncLicencaSaasEm = 0;
+    await this.sincronizarLicencaComSaasSePossivel();
+    const atual = await this.obterCamara();
+    const c: any = atual.config;
+    return {
+      ok: true,
+      codigo_instancia: c.codigo_instancia,
+      licenca_status: c.licenca_status,
+      licenca_ultimo_sync_em: c.licenca_ultimo_sync_em || null,
+      onboarding_status: c.onboarding_status || 'NAO_INICIADO',
+      liberado_login: c.licenca_status === licenca_status.ATIVA,
+    };
+  }
+
   async solicitarPrimeiroAcesso(
     body: {
       codigo_instancia: string;
       nome_oficial: string;
+      backend_url?: string | null;
       cidade?: string | null;
       uf?: string | null;
       responsavel_nome: string;
@@ -194,6 +270,10 @@ export class ConfiguracaoService {
       data: {
         codigo_instancia: codigo,
         nome_oficial: body.nome_oficial.trim(),
+        backend_url:
+          body.backend_url?.trim() ||
+          process.env.PUBLIC_API_BASE_URL?.trim() ||
+          null,
         cidade: body.cidade?.trim() || null,
         uf: body.uf?.trim().toUpperCase() || null,
         licenca_status: licenca_status.TESTE,
@@ -220,6 +300,10 @@ export class ConfiguracaoService {
           body: JSON.stringify({
             codigo_instancia: codigo,
             nome_oficial: body.nome_oficial,
+            backend_url:
+              body.backend_url?.trim() ||
+              process.env.PUBLIC_API_BASE_URL?.trim() ||
+              null,
             cidade: body.cidade || null,
             uf: body.uf || null,
             responsavel_nome: body.responsavel_nome,
@@ -263,6 +347,7 @@ export class ConfiguracaoService {
     body: {
       codigo_instancia: string;
       nome_oficial: string;
+      backend_url?: string | null;
       cidade?: string | null;
       uf?: string | null;
       responsavel_nome: string;
@@ -283,6 +368,7 @@ export class ConfiguracaoService {
       create: {
         codigo_instancia: codigo,
         nome_oficial: body.nome_oficial,
+        backend_url: body.backend_url?.trim() || null,
         cidade: body.cidade?.trim() || null,
         uf: body.uf?.trim().toUpperCase() || null,
         licenca_status: licenca_status.TESTE,
@@ -294,6 +380,7 @@ export class ConfiguracaoService {
       } as any,
       update: {
         nome_oficial: body.nome_oficial,
+        backend_url: body.backend_url?.trim() || null,
         cidade: body.cidade?.trim() || null,
         uf: body.uf?.trim().toUpperCase() || null,
         onboarding_status: 'SOLICITADO',
@@ -335,6 +422,7 @@ export class ConfiguracaoService {
     const config = await this.prisma.camara_configuracoes.findUnique({
       where: { codigo_instancia: codigo },
       select: {
+        id: true,
         codigo_instancia: true,
         licenca_status: true,
         licenca_expira_em: true,
@@ -349,7 +437,18 @@ export class ConfiguracaoService {
       return { ok: false, mensagem: 'Instancia nao encontrada.' };
     }
 
-    return { ok: true, config };
+    // Quando a instancia consulta a licenca com chave valida, consideramos a conexao ativa.
+    await this.prisma.camara_configuracoes.update({
+      where: { id: config.id },
+      data: {
+        ultimo_heartbeat_em: new Date(),
+        licenca_ultimo_sync_em: new Date(),
+        atualizado_em: new Date(),
+      } as any,
+    });
+
+    const { id, ...configSemId } = config as any;
+    return { ok: true, config: configSemId };
   }
 
   async atualizarCamara(body: {
@@ -637,10 +736,21 @@ export class ConfiguracaoService {
       where: { codigo_instancia: codigo },
     });
     if (!config) return { ok: false, mensagem: 'Instancia nao cadastrada.' };
-    if (!config.monitor_token_hash) {
-      return { ok: false, mensagem: 'Token de monitoramento nao configurado.' };
-    }
     const tokenHash = this.hashMonitorToken(body.monitor_token || '');
+
+    // Pareamento automatico: se a instancia ainda nao tem token vinculado no SaaS,
+    // aceitamos o primeiro heartbeat e gravamos o hash enviado.
+    if (!config.monitor_token_hash) {
+      await this.prisma.camara_configuracoes.update({
+        where: { id: config.id },
+        data: {
+          monitor_token_hash: tokenHash,
+          atualizado_em: new Date(),
+        },
+      });
+      config.monitor_token_hash = tokenHash;
+    }
+
     if (tokenHash !== config.monitor_token_hash) {
       return { ok: false, mensagem: 'Token de monitoramento invalido.' };
     }
@@ -675,6 +785,227 @@ export class ConfiguracaoService {
       ok: true,
       codigo_instancia: codigo,
       recebido_em: new Date().toISOString(),
+    };
+  }
+
+  async redefinirCredencialAdminInstancia(
+    body: {
+      codigo_instancia: string;
+      novo_email?: string | null;
+      nova_senha: string;
+      novo_nome?: string | null;
+    },
+    contexto?: AuditoriaContexto,
+  ) {
+    const codigo = (body.codigo_instancia || '').trim().toLowerCase();
+    const senha = (body.nova_senha || '').trim();
+    if (!codigo) {
+      return { ok: false, mensagem: 'Codigo da instancia obrigatorio.' };
+    }
+    if (senha.length < 6) {
+      return { ok: false, mensagem: 'Nova senha deve ter pelo menos 6 caracteres.' };
+    }
+
+    const instanciaAlvo = await this.prisma.camara_configuracoes.findUnique({
+      where: { codigo_instancia: codigo },
+    });
+    if (!instanciaAlvo) {
+      return { ok: false, mensagem: 'Instancia nao encontrada.' };
+    }
+
+    const atual = await this.obterRegistroCamaraAtual();
+    const codigoAtual = (atual.codigo_instancia || '').trim().toLowerCase();
+    const isInstanciaLocal = codigoAtual === codigo;
+
+    if (!isInstanciaLocal) {
+      const backendUrl = (instanciaAlvo.backend_url || '').trim();
+      if (!backendUrl) {
+        return {
+          ok: false,
+          mensagem:
+            'Instancia sem backend_url configurado. Cadastre a URL da API da camara.',
+        };
+      }
+
+      const masterInstanceAdminKey = (
+        process.env.MASTER_INSTANCE_ADMIN_KEY || ''
+      ).trim();
+      if (!masterInstanceAdminKey) {
+        return {
+          ok: false,
+          mensagem:
+            'MASTER_INSTANCE_ADMIN_KEY nao configurado no SaaS Master.',
+        };
+      }
+
+      try {
+        const resp = await fetch(
+          `${backendUrl.replace(/\/$/, '')}/configuracao/camaras/admin/redefinir-credencial-local`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-master-admin-key': masterInstanceAdminKey,
+            },
+            body: JSON.stringify({
+              codigo_instancia: codigo,
+              novo_email: body.novo_email || null,
+              novo_nome: body.novo_nome || null,
+              nova_senha: body.nova_senha,
+            }),
+          },
+        );
+
+        let data: any = null;
+        try {
+          data = await resp.json();
+        } catch {
+          data = null;
+        }
+
+        if (!resp.ok || data?.ok === false) {
+          return {
+            ok: false,
+            mensagem:
+              data?.mensagem ||
+              `Falha ao redefinir credencial na instancia remota (HTTP ${resp.status}).`,
+          };
+        }
+
+        await this.auditoriaService.registrarEvento({
+          acao: 'SAAS_ADMIN_CREDENCIAL_REDEFINIDA_REMOTA',
+          entidade: 'camara_configuracao',
+          entidadeId: instanciaAlvo.id,
+          detalhes: {
+            codigo_instancia: codigo,
+            backend_url: backendUrl,
+          },
+          contexto,
+        });
+
+        return {
+          ok: true,
+          mensagem: data?.mensagem || 'Credencial redefinida com sucesso.',
+          admin: data?.admin || null,
+        };
+      } catch {
+        return {
+          ok: false,
+          mensagem:
+            'Falha de conexao com a instancia remota. Verifique backend_url e conectividade.',
+        };
+      }
+    }
+
+    return this.executarResetAdminLocal(body, contexto);
+  }
+
+  async redefinirCredencialAdminLocal(
+    body: {
+      codigo_instancia: string;
+      novo_email?: string | null;
+      nova_senha: string;
+      novo_nome?: string | null;
+    },
+    masterAdminKey?: string | null,
+    contexto?: { ip?: string | null; userAgent?: string | null },
+  ) {
+    const localMasterKey = (process.env.LOCAL_MASTER_ADMIN_KEY || '').trim();
+    if (!localMasterKey || !masterAdminKey || masterAdminKey !== localMasterKey) {
+      return { ok: false, mensagem: 'Chave de administracao invalida.' };
+    }
+
+    const auditoriaContexto: AuditoriaContexto = {
+      usuarioId: null,
+      usuarioNome: 'SaaS Master',
+      usuarioRole: 'ADMIN' as any,
+      ip: contexto?.ip || null,
+      userAgent: contexto?.userAgent || null,
+    };
+
+    return this.executarResetAdminLocal(body, auditoriaContexto);
+  }
+
+  private async executarResetAdminLocal(
+    body: {
+      codigo_instancia: string;
+      novo_email?: string | null;
+      nova_senha: string;
+      novo_nome?: string | null;
+    },
+    contexto?: AuditoriaContexto,
+  ) {
+    const codigo = (body.codigo_instancia || '').trim().toLowerCase();
+    const senha = (body.nova_senha || '').trim();
+    const atual = await this.obterRegistroCamaraAtual();
+    if ((atual.codigo_instancia || '').trim().toLowerCase() !== codigo) {
+      return {
+        ok: false,
+        mensagem: 'Codigo da instancia nao corresponde a esta API local.',
+      };
+    }
+    if (senha.length < 6) {
+      return { ok: false, mensagem: 'Nova senha deve ter pelo menos 6 caracteres.' };
+    }
+
+    const admin = await this.prisma.usuarios.findFirst({
+      where: { role: 'ADMIN', ativo: true },
+      orderBy: { criado_em: 'asc' },
+    });
+
+    if (!admin) {
+      return { ok: false, mensagem: 'Administrador local nao encontrado.' };
+    }
+
+    const novoEmail = body.novo_email?.trim().toLowerCase() || null;
+    if (novoEmail && novoEmail !== admin.email) {
+      const emailEmUso = await this.prisma.usuarios.findFirst({
+        where: { email: novoEmail, id: { not: admin.id } },
+        select: { id: true },
+      });
+      if (emailEmUso) {
+        return { ok: false, mensagem: 'E-mail ja esta em uso por outro usuario.' };
+      }
+    }
+
+    const senhaHash = await bcrypt.hash(senha, 10);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.usuarios.update({
+        where: { id: admin.id },
+        data: {
+          email: novoEmail || admin.email,
+          nome: body.novo_nome?.trim() || admin.nome,
+          senha_hash: senhaHash,
+          atualizado_em: new Date(),
+        },
+      });
+
+      await tx.auth_sessoes.updateMany({
+        where: { usuario_id: admin.id, revogada_em: null },
+        data: { revogada_em: new Date() },
+      });
+    });
+
+    await this.auditoriaService.registrarEvento({
+      acao: 'SAAS_ADMIN_CREDENCIAL_REDEFINIDA',
+      entidade: 'usuarios',
+      entidadeId: admin.id,
+      detalhes: {
+        codigo_instancia: codigo,
+        email_anterior: admin.email,
+        email_novo: novoEmail || admin.email,
+      },
+      contexto,
+    });
+
+    return {
+      ok: true,
+      mensagem: 'Credencial do administrador redefinida com sucesso.',
+      admin: {
+        id: admin.id,
+        email: novoEmail || admin.email,
+        nome: body.novo_nome?.trim() || admin.nome,
+      },
     };
   }
 }

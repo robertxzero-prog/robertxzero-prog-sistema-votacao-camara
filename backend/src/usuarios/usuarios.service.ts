@@ -10,6 +10,27 @@ import { UpdateVereadorDto } from './dto/update-vereador.dto';
 export class UsuariosService {
   constructor(private prisma: PrismaService) {}
 
+  private async obterOuCriarCadeira(numero: number) {
+    const n = Number(numero);
+    if (!Number.isInteger(n) || n <= 0) {
+      return null;
+    }
+
+    const existente = await this.prisma.cadeiras.findUnique({
+      where: { numero: n },
+    });
+    if (existente) return existente;
+
+    return this.prisma.cadeiras.create({
+      data: {
+        numero: n,
+        linha: 1,
+        coluna: n,
+        descricao: `Cadeira ${n}`,
+      },
+    });
+  }
+
   private async garantirCargoMesaUnico(cargoMesa: string | null, usuarioIdAtual: string) {
     if (!cargoMesa) return;
     await this.prisma.vereadores.updateMany({
@@ -86,11 +107,7 @@ export class UsuariosService {
   async criarVereador(data: CreateVereadorDto) {
     const senhaHash = await bcrypt.hash(data.senha, 10);
 
-    const cadeira = await this.prisma.cadeiras.findUnique({
-      where: {
-        numero: data.cadeiraNumero,
-      },
-    });
+    const cadeira = await this.obterOuCriarCadeira(data.cadeiraNumero);
 
     if (!cadeira) {
       return {
@@ -189,11 +206,7 @@ export class UsuariosService {
       };
     }
 
-    const cadeira = await this.prisma.cadeiras.findUnique({
-      where: {
-        numero: data.cadeiraNumero,
-      },
-    });
+    const cadeira = await this.obterOuCriarCadeira(data.cadeiraNumero);
 
     if (!cadeira) {
       return {

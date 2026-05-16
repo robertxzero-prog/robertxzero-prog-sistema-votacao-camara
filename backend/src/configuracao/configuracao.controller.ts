@@ -37,12 +37,18 @@ export class ConfiguracaoController {
     return this.configuracaoService.obterStatusOnboarding();
   }
 
+  @Post('licenca/sincronizar-agora')
+  sincronizarLicencaAgora() {
+    return this.configuracaoService.sincronizarLicencaAgora();
+  }
+
   @Post('onboarding/solicitar')
   solicitarPrimeiroAcesso(
     @Body()
     body: {
       codigo_instancia: string;
       nome_oficial: string;
+      backend_url?: string | null;
       cidade?: string | null;
       uf?: string | null;
       responsavel_nome: string;
@@ -68,6 +74,7 @@ export class ConfiguracaoController {
     body: {
       codigo_instancia: string;
       nome_oficial: string;
+      backend_url?: string | null;
       cidade?: string | null;
       uf?: string | null;
       responsavel_nome: string;
@@ -218,6 +225,51 @@ export class ConfiguracaoController {
     return this.configuracaoService.excluirInstancia(
       codigoInstancia,
       extrairContextoAuditoria(req),
+    );
+  }
+
+  @Post('camaras/admin/redefinir-credencial')
+  @UseGuards(AuthGuard('jwt'))
+  redefinirCredencialAdmin(
+    @Body()
+    body: {
+      codigo_instancia: string;
+      novo_email?: string | null;
+      nova_senha: string;
+      novo_nome?: string | null;
+    },
+    @Req() req: any,
+  ) {
+    this.exigirAdmin(req);
+    return this.configuracaoService.redefinirCredencialAdminInstancia(
+      body,
+      extrairContextoAuditoria(req),
+    );
+  }
+
+  @Post('camaras/admin/redefinir-credencial-local')
+  redefinirCredencialAdminLocal(
+    @Body()
+    body: {
+      codigo_instancia: string;
+      novo_email?: string | null;
+      nova_senha: string;
+      novo_nome?: string | null;
+    },
+    @Headers('x-master-admin-key') masterAdminKey?: string,
+    @Req() req?: any,
+  ) {
+    return this.configuracaoService.redefinirCredencialAdminLocal(
+      body,
+      masterAdminKey || null,
+      {
+        ip:
+          req?.headers?.['x-forwarded-for']?.split?.(',')?.[0]?.trim?.() ||
+          req?.ip ||
+          req?.socket?.remoteAddress ||
+          null,
+        userAgent: req?.headers?.['user-agent'] || null,
+      },
     );
   }
 }

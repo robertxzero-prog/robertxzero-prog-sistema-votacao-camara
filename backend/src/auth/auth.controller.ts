@@ -10,7 +10,9 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 
 import { AuthService } from './auth.service';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { LoginDto } from './dto/login.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -74,5 +76,28 @@ export class AuthController {
   @UseGuards(AuthGuard('jwt'))
   desativar2fa(@Headers('authorization') authorization: string) {
     return this.authService.desativar2fa(authorization);
+  }
+
+  @Post('forgot-password')
+  forgotPassword(@Body() body: ForgotPasswordDto, @Req() req: any) {
+    return this.authService.solicitarResetSenha(body.email, {
+      ip: req?.ip || req?.socket?.remoteAddress || null,
+      userAgent: req?.headers?.['user-agent'] || null,
+      deviceName: 'Admin Web - Recuperação',
+    });
+  }
+
+  @Post('reset-password')
+  resetPassword(@Body() body: ResetPasswordDto, @Req() req: any) {
+    return this.authService.redefinirSenha(
+      body.email,
+      body.codigo,
+      body.novaSenha,
+      {
+        ip: req?.ip || req?.socket?.remoteAddress || null,
+        userAgent: req?.headers?.['user-agent'] || null,
+        deviceName: 'Admin Web - Recuperação',
+      },
+    );
   }
 }

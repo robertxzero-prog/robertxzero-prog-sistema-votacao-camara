@@ -43,7 +43,7 @@ async function main() {
   console.log('9 cadeiras criadas.');
 
   const vereadores = [
-    ['Aldemir Pires', 'vereador1@camara.local', 'PSD', 1],
+    ['Vereador 1', 'vereador1@camara.local', 'PSD', 1],
     ['Vereador 2', 'vereador2@camara.local', 'MDB', 2],
     ['Vereador 3', 'vereador3@camara.local', 'PT', 3],
     ['Vereador 4', 'vereador4@camara.local', 'PSD', 4],

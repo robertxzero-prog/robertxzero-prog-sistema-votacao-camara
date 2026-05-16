@@ -6,7 +6,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { user_role } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
-import { createHmac, randomBytes, randomUUID } from 'crypto';
+import { createHash, createHmac, randomBytes, randomInt, randomUUID } from 'crypto';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
@@ -153,6 +153,10 @@ export class AuthService {
       const ts = Date.now() + janela * 30000;
       return this.gerarTotp(secret, ts) === normalized;
     });
+  }
+
+  private hashResetCodigo(codigo: string) {
+    return createHash('sha256').update(codigo).digest('hex');
   }
 
   private expiraEmData() {
@@ -501,6 +505,139 @@ export class AuthService {
       },
     });
     return { ok: true, twofa_enabled: false };
+  }
+
+  async solicitarResetSenha(email: string, contexto?: LoginContexto) {
+    const usuario = await this.prisma.usuarios.findUnique({
+      where: { email: (email || '').trim().toLowerCase() },
+    });
+
+    if (usuario && usuario.ativo) {
+      const codigo = randomInt(100000, 999999).toString();
+      const expiraEm = new Date(Date.now() + 15 * 60 * 1000);
+
+      await this.prisma.$executeRawUnsafe(
+        `
+        UPDATE auth_password_resets
+        SET usado_em = NOW()
+        WHERE usuario_id = $1::uuid AND usado_em IS NULL
+        `,
+        usuario.id,
+      );
+
+      await this.prisma.$executeRawUnsafe(
+        `
+        INSERT INTO auth_password_resets (
+          usuario_id,
+          codigo_hash,
+          expira_em
+        )
+        VALUES ($1::uuid, $2, $3)
+        `,
+        usuario.id,
+        this.hashResetCodigo(codigo),
+        expiraEm,
+      );
+
+      await this.auditoriaService.registrarEvento({
+        acao: 'AUTH_RESET_SOLICITADO',
+        entidade: 'auth',
+        entidadeId: usuario.id,
+        detalhes: { email: usuario.email },
+        contexto: {
+          usuarioId: usuario.id,
+          usuarioNome: usuario.nome,
+          usuarioRole: usuario.role,
+          ip: contexto?.ip || null,
+          userAgent: contexto?.userAgent || null,
+        },
+      });
+
+      const payload: any = {
+        ok: true,
+        message: 'Se o e-mail existir, um código de recuperação foi enviado.',
+      };
+
+      if (process.env.NODE_ENV !== 'production') {
+        payload.codigo_teste = codigo;
+      }
+
+      return payload;
+    }
+
+    return {
+      ok: true,
+      message: 'Se o e-mail existir, um código de recuperação foi enviado.',
+    };
+  }
+
+  async redefinirSenha(
+    email: string,
+    codigo: string,
+    novaSenha: string,
+    contexto?: LoginContexto,
+  ) {
+    const usuario = await this.prisma.usuarios.findUnique({
+      where: { email: (email || '').trim().toLowerCase() },
+    });
+
+    if (!usuario || !usuario.ativo) {
+      throw new UnauthorizedException('Código inválido ou expirado.');
+    }
+
+    const codigoHash = this.hashResetCodigo((codigo || '').trim());
+    const resetRows: Array<{ id: string }> = await this.prisma.$queryRawUnsafe(
+      `
+      SELECT id
+      FROM auth_password_resets
+      WHERE usuario_id = $1::uuid
+        AND codigo_hash = $2
+        AND usado_em IS NULL
+        AND expira_em > NOW()
+      ORDER BY criado_em DESC
+      LIMIT 1
+      `,
+      usuario.id,
+      codigoHash,
+    );
+
+    if (!resetRows.length) {
+      throw new UnauthorizedException('Código inválido ou expirado.');
+    }
+
+    const resetId = resetRows[0].id;
+
+    const senhaHash = await bcrypt.hash(novaSenha, 10);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.usuarios.update({
+        where: { id: usuario.id },
+        data: { senha_hash: senhaHash, atualizado_em: new Date() },
+      });
+      await tx.$executeRawUnsafe(
+        `UPDATE auth_password_resets SET usado_em = NOW() WHERE id = $1::uuid`,
+        resetId,
+      );
+      await tx.auth_sessoes.updateMany({
+        where: { usuario_id: usuario.id, revogada_em: null },
+        data: { revogada_em: new Date() },
+      });
+    });
+
+    await this.auditoriaService.registrarEvento({
+      acao: 'AUTH_RESET_CONFIRMADO',
+      entidade: 'auth',
+      entidadeId: usuario.id,
+      detalhes: { email: usuario.email },
+      contexto: {
+        usuarioId: usuario.id,
+        usuarioNome: usuario.nome,
+        usuarioRole: usuario.role,
+        ip: contexto?.ip || null,
+        userAgent: contexto?.userAgent || null,
+      },
+    });
+
+    return { ok: true, message: 'Senha redefinida com sucesso.' };
   }
 
   validarToken(authorization: string) {
