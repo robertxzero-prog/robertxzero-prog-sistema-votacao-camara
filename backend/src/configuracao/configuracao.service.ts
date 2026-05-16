@@ -39,6 +39,19 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
     return createHash('sha256').update(`${salt}:${token}`).digest('hex');
   }
 
+  private resolverBackendUrlInstancia(
+    backendUrlInstancia?: string | null,
+    requestBackendUrl?: string | null,
+  ) {
+    return (
+      (backendUrlInstancia || '').trim() ||
+      (requestBackendUrl || '').trim() ||
+      (process.env.DEFAULT_INSTANCE_BACKEND_URL || '').trim() ||
+      (process.env.PUBLIC_API_BASE_URL || '').trim() ||
+      ''
+    );
+  }
+
   private async notificarNovaCamaraPorEmail(input: {
     codigoInstancia: string;
     nomeOficial: string;
@@ -358,10 +371,10 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
       data: {
         codigo_instancia: codigo,
         nome_oficial: body.nome_oficial.trim(),
-        backend_url:
-          body.backend_url?.trim() ||
-          process.env.PUBLIC_API_BASE_URL?.trim() ||
-          null,
+        backend_url: this.resolverBackendUrlInstancia(
+          body.backend_url,
+          process.env.PUBLIC_API_BASE_URL,
+        ) || null,
         cidade: body.cidade?.trim() || null,
         uf: body.uf?.trim().toUpperCase() || null,
         licenca_status: licenca_status.TESTE,
@@ -389,9 +402,10 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
             codigo_instancia: codigo,
             nome_oficial: body.nome_oficial,
             backend_url:
-              body.backend_url?.trim() ||
-              process.env.PUBLIC_API_BASE_URL?.trim() ||
-              null,
+              this.resolverBackendUrlInstancia(
+                body.backend_url,
+                process.env.PUBLIC_API_BASE_URL,
+              ) || null,
             cidade: body.cidade || null,
             uf: body.uf || null,
             responsavel_nome: body.responsavel_nome,
@@ -445,6 +459,7 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
       origem_user_agent?: string | null;
     },
     onboardingKey?: string | null,
+    backendUrlDetectado?: string | null,
   ) {
     const esperado = (process.env.ONBOARDING_SHARED_KEY || '').trim();
     if (!esperado || !onboardingKey || onboardingKey !== esperado) {
@@ -461,7 +476,9 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
       create: {
         codigo_instancia: codigo,
         nome_oficial: body.nome_oficial,
-        backend_url: body.backend_url?.trim() || null,
+        backend_url:
+          this.resolverBackendUrlInstancia(body.backend_url, backendUrlDetectado) ||
+          null,
         cidade: body.cidade?.trim() || null,
         uf: body.uf?.trim().toUpperCase() || null,
         licenca_status: licenca_status.TESTE,
@@ -473,7 +490,9 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
       } as any,
       update: {
         nome_oficial: body.nome_oficial,
-        backend_url: body.backend_url?.trim() || null,
+        backend_url:
+          this.resolverBackendUrlInstancia(body.backend_url, backendUrlDetectado) ||
+          null,
         cidade: body.cidade?.trim() || null,
         uf: body.uf?.trim().toUpperCase() || null,
         onboarding_status: 'SOLICITADO',
@@ -958,12 +977,12 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
     const isInstanciaLocal = codigoAtual === codigo;
 
     if (!isInstanciaLocal) {
-      const backendUrl = (instanciaAlvo.backend_url || '').trim();
+      const backendUrl = this.resolverBackendUrlInstancia(instanciaAlvo.backend_url);
       if (!backendUrl) {
         return {
           ok: false,
           mensagem:
-            'Instancia sem backend_url configurado. Cadastre a URL da API da camara.',
+            'Backend da instancia nao encontrado. Configure DEFAULT_INSTANCE_BACKEND_URL no SaaS Master.',
         };
       }
 
@@ -1038,12 +1057,127 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
         return {
           ok: false,
           mensagem:
-            'Falha de conexao com a instancia remota. Verifique backend_url e conectividade.',
+            'Falha de conexao com a instancia remota. Verifique conectividade e URL padrao da instancia.',
         };
       }
     }
 
     return this.executarResetAdminLocal(body, contexto);
+  }
+
+  async testarConexaoInstancia(codigoInstancia: string) {
+    const codigo = (codigoInstancia || '').trim().toLowerCase();
+    if (!codigo) return { ok: false, mensagem: 'Codigo da instancia obrigatorio.' };
+
+    const instancia = await this.prisma.camara_configuracoes.findUnique({
+      where: { codigo_instancia: codigo },
+    });
+    if (!instancia) return { ok: false, mensagem: 'Instancia nao encontrada.' };
+
+    const backendUrl = this.resolverBackendUrlInstancia(instancia.backend_url);
+    if (!backendUrl) {
+      return {
+        ok: false,
+        mensagem:
+          'Backend da instancia nao encontrado. Configure DEFAULT_INSTANCE_BACKEND_URL no SaaS Master.',
+      };
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    try {
+      const started = Date.now();
+      const res = await fetch(
+        `${backendUrl.replace(/\/$/, '')}/configuracao/onboarding/status`,
+        {
+          method: 'GET',
+          signal: controller.signal,
+        },
+      );
+      const elapsed = Date.now() - started;
+      const data: any = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        return {
+          ok: false,
+          mensagem: `HTTP ${res.status} em ${elapsed}ms`,
+          detalhe: data?.message || data?.mensagem || 'Resposta invalida.',
+        };
+      }
+
+      return {
+        ok: true,
+        mensagem: `Conexao OK (${elapsed}ms)`,
+        detalhe: `onboarding_status: ${data?.onboarding_status || '-'} | licenca_status: ${data?.licenca_status || '-'}`,
+      };
+    } catch (err: any) {
+      if (err?.name === 'AbortError') {
+        return { ok: false, mensagem: 'Timeout (8s) ao conectar na instancia.' };
+      }
+      return {
+        ok: false,
+        mensagem: 'Falha de conexao com backend da instancia.',
+        detalhe: err?.message || String(err),
+      };
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  async sincronizarLicencaInstanciaAgora(codigoInstancia: string) {
+    const codigo = (codigoInstancia || '').trim().toLowerCase();
+    if (!codigo) return { ok: false, mensagem: 'Codigo da instancia obrigatorio.' };
+
+    const instancia = await this.prisma.camara_configuracoes.findUnique({
+      where: { codigo_instancia: codigo },
+    });
+    if (!instancia) return { ok: false, mensagem: 'Instancia nao encontrada.' };
+
+    const backendUrl = this.resolverBackendUrlInstancia(instancia.backend_url);
+    if (!backendUrl) {
+      return {
+        ok: false,
+        mensagem:
+          'Backend da instancia nao encontrado. Configure DEFAULT_INSTANCE_BACKEND_URL no SaaS Master.',
+      };
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    try {
+      const res = await fetch(
+        `${backendUrl.replace(/\/$/, '')}/configuracao/licenca/sincronizar-agora`,
+        {
+          method: 'POST',
+          signal: controller.signal,
+        },
+      );
+      const data: any = await res.json().catch(() => null);
+
+      if (!res.ok || data?.ok === false) {
+        return {
+          ok: false,
+          mensagem: data?.mensagem || `Falha no sync (HTTP ${res.status}).`,
+        };
+      }
+
+      return {
+        ok: true,
+        mensagem: `Sync concluido: ${data?.licenca_status || '-'}`,
+        detalhe: `onboarding: ${data?.onboarding_status || '-'} | liberado_login: ${data?.liberado_login ? 'sim' : 'nao'}`,
+      };
+    } catch (err: any) {
+      if (err?.name === 'AbortError') {
+        return { ok: false, mensagem: 'Timeout (10s) no sync da instancia.' };
+      }
+      return {
+        ok: false,
+        mensagem: 'Falha ao sincronizar licenca na instancia.',
+        detalhe: err?.message || String(err),
+      };
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 
   private async chamarApiPublicaRecuperacaoInstancia(
@@ -1091,12 +1225,13 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
     });
     if (!instancia) return { ok: false, mensagem: 'Instancia nao encontrada.' };
 
-    const backendUrl =
-      (instancia.backend_url || '').trim() ||
-      process.env.PUBLIC_API_BASE_URL?.trim() ||
-      '';
+    const backendUrl = this.resolverBackendUrlInstancia(instancia.backend_url);
     if (!backendUrl) {
-      return { ok: false, mensagem: 'Instancia sem backend_url configurado.' };
+      return {
+        ok: false,
+        mensagem:
+          'Backend da instancia nao encontrado. Configure DEFAULT_INSTANCE_BACKEND_URL no SaaS Master.',
+      };
     }
 
     try {
@@ -1147,12 +1282,13 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
     });
     if (!instancia) return { ok: false, mensagem: 'Instancia nao encontrada.' };
 
-    const backendUrl =
-      (instancia.backend_url || '').trim() ||
-      process.env.PUBLIC_API_BASE_URL?.trim() ||
-      '';
+    const backendUrl = this.resolverBackendUrlInstancia(instancia.backend_url);
     if (!backendUrl) {
-      return { ok: false, mensagem: 'Instancia sem backend_url configurado.' };
+      return {
+        ok: false,
+        mensagem:
+          'Backend da instancia nao encontrado. Configure DEFAULT_INSTANCE_BACKEND_URL no SaaS Master.',
+      };
     }
 
     try {

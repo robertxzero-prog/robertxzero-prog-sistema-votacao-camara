@@ -84,10 +84,23 @@ export class ConfiguracaoController {
       origem_user_agent?: string | null;
     },
     @Headers('x-onboarding-key') onboardingKey?: string,
+    @Req() req?: any,
   ) {
+    const forwardedProto = req?.headers?.['x-forwarded-proto'];
+    const protocol = Array.isArray(forwardedProto)
+      ? forwardedProto[0]
+      : typeof forwardedProto === 'string' && forwardedProto.length > 0
+        ? forwardedProto.split(',')[0].trim()
+        : req?.protocol || 'https';
+    const forwardedHost = req?.headers?.['x-forwarded-host'];
+    const host = Array.isArray(forwardedHost)
+      ? forwardedHost[0]
+      : forwardedHost || req?.headers?.host || null;
+    const backendUrlDetectado = host ? `${protocol}://${host}` : null;
     return this.configuracaoService.registrarOnboardingPublico(
       body,
       onboardingKey || null,
+      backendUrlDetectado,
     );
   }
 
@@ -212,6 +225,28 @@ export class ConfiguracaoController {
     return this.configuracaoService.revogarTokenInstancia(
       body.codigo_instancia,
       extrairContextoAuditoria(req),
+    );
+  }
+
+  @Post('camaras/testar-conexao')
+  @UseGuards(AuthGuard('jwt'))
+  testarConexaoInstancia(
+    @Body() body: { codigo_instancia: string },
+    @Req() req: any,
+  ) {
+    this.exigirAdmin(req);
+    return this.configuracaoService.testarConexaoInstancia(body.codigo_instancia);
+  }
+
+  @Post('camaras/forcar-sync')
+  @UseGuards(AuthGuard('jwt'))
+  forcarSyncInstancia(
+    @Body() body: { codigo_instancia: string },
+    @Req() req: any,
+  ) {
+    this.exigirAdmin(req);
+    return this.configuracaoService.sincronizarLicencaInstanciaAgora(
+      body.codigo_instancia,
     );
   }
 
