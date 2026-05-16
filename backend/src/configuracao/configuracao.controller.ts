@@ -247,6 +247,42 @@ export class ConfiguracaoController {
     );
   }
 
+  @Post('camaras/admin/recuperacao/solicitar')
+  @UseGuards(AuthGuard('jwt'))
+  solicitarRecuperacaoAdmin(
+    @Body()
+    body: {
+      codigo_instancia: string;
+      email: string;
+    },
+    @Req() req: any,
+  ) {
+    this.exigirAdmin(req);
+    return this.configuracaoService.solicitarRecuperacaoAdminInstancia(
+      body,
+      extrairContextoAuditoria(req),
+    );
+  }
+
+  @Post('camaras/admin/recuperacao/confirmar')
+  @UseGuards(AuthGuard('jwt'))
+  confirmarRecuperacaoAdmin(
+    @Body()
+    body: {
+      codigo_instancia: string;
+      email: string;
+      codigo: string;
+      nova_senha: string;
+    },
+    @Req() req: any,
+  ) {
+    this.exigirAdmin(req);
+    return this.configuracaoService.confirmarRecuperacaoAdminInstancia(
+      body,
+      extrairContextoAuditoria(req),
+    );
+  }
+
   @Post('camaras/admin/redefinir-credencial-local')
   redefinirCredencialAdminLocal(
     @Body()

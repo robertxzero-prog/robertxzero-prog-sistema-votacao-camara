@@ -512,7 +512,7 @@ export class AuthService {
       where: { email: (email || '').trim().toLowerCase() },
     });
 
-    if (usuario && usuario.ativo) {
+    if (usuario && usuario.ativo && usuario.role === user_role.ADMIN) {
       const codigo = randomInt(100000, 999999).toString();
       const expiraEm = new Date(Date.now() + 15 * 60 * 1000);
 
@@ -581,7 +581,7 @@ export class AuthService {
       where: { email: (email || '').trim().toLowerCase() },
     });
 
-    if (!usuario || !usuario.ativo) {
+    if (!usuario || !usuario.ativo || usuario.role !== user_role.ADMIN) {
       throw new UnauthorizedException('Código inválido ou expirado.');
     }
 

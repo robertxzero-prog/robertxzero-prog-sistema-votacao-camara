@@ -39,6 +39,94 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
     return createHash('sha256').update(`${salt}:${token}`).digest('hex');
   }
 
+  private async notificarNovaCamaraPorEmail(input: {
+    codigoInstancia: string;
+    nomeOficial: string;
+    cidade?: string | null;
+    uf?: string | null;
+    responsavelNome?: string | null;
+    responsavelEmail?: string | null;
+    backendUrl?: string | null;
+    origem: 'onboarding_publico' | 'saas_manual';
+  }) {
+    const resendApiKey = (process.env.RESEND_API_KEY || '').trim();
+    const emailDestino = (
+      process.env.SAAS_ALERT_EMAIL_TO || 'robertxzero@gmail.com'
+    )
+      .trim()
+      .toLowerCase();
+    const emailRemetente = (
+      process.env.SAAS_ALERT_EMAIL_FROM || 'onboarding@votacam.local'
+    ).trim();
+
+    if (!resendApiKey || !emailDestino || !emailRemetente) {
+      return { ok: false, skipped: true, motivo: 'email_nao_configurado' as const };
+    }
+
+    const painelMasterUrl = (
+      process.env.SAAS_MASTER_WEB_URL || 'https://votacam-master-web.onrender.com'
+    ).trim();
+    const backendUrl = (input.backendUrl || '').trim() || 'nao informado';
+    const local = [input.cidade || null, input.uf || null].filter(Boolean).join('/');
+    const assunto = `[VotaCam] Nova camara cadastrada: ${input.nomeOficial}`;
+
+    const html = `
+      <div style="font-family:Arial,Helvetica,sans-serif;line-height:1.5;color:#0f172a">
+        <h2>Nova camara cadastrada</h2>
+        <p>Uma nova camara foi registrada no SaaS Master.</p>
+        <ul>
+          <li><strong>Codigo da instancia:</strong> ${input.codigoInstancia}</li>
+          <li><strong>Nome oficial:</strong> ${input.nomeOficial}</li>
+          <li><strong>Cidade/UF:</strong> ${local || 'nao informado'}</li>
+          <li><strong>Responsavel:</strong> ${input.responsavelNome || 'nao informado'}</li>
+          <li><strong>E-mail responsavel:</strong> ${input.responsavelEmail || 'nao informado'}</li>
+          <li><strong>Backend da instancia:</strong> ${backendUrl}</li>
+          <li><strong>Origem:</strong> ${input.origem}</li>
+        </ul>
+        <p>
+          <a href="${painelMasterUrl}" target="_blank" rel="noopener noreferrer">
+            Abrir SaaS Master
+          </a>
+        </p>
+      </div>
+    `;
+
+    try {
+      const resp = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${resendApiKey}`,
+        },
+        body: JSON.stringify({
+          from: emailRemetente,
+          to: [emailDestino],
+          subject: assunto,
+          html,
+        }),
+      });
+
+      if (!resp.ok) {
+        const erro = await resp.text().catch(() => '');
+        return {
+          ok: false,
+          skipped: false,
+          motivo: `falha_resend_${resp.status}`,
+          erro,
+        };
+      }
+
+      return { ok: true };
+    } catch (err: any) {
+      return {
+        ok: false,
+        skipped: false,
+        motivo: 'erro_rede_email',
+        erro: err?.message || String(err),
+      };
+    }
+  }
+
   private async obterRegistroCamaraAtual() {
     const prefer = (process.env.CAMARA_INSTANCE_CODE || 'default').trim().toLowerCase();
     let config = await this.prisma.camara_configuracoes.findUnique({
@@ -363,6 +451,11 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
       return { ok: false, mensagem: 'Chave de onboarding invalida.' };
     }
     const codigo = body.codigo_instancia.trim().toLowerCase();
+    const existente = await this.prisma.camara_configuracoes.findUnique({
+      where: { codigo_instancia: codigo },
+      select: { id: true },
+    });
+
     const config = await this.prisma.camara_configuracoes.upsert({
       where: { codigo_instancia: codigo },
       create: {
@@ -401,6 +494,30 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
         origem_ip: body.origem_ip || null,
       },
     });
+
+    if (!existente) {
+      const envio = await this.notificarNovaCamaraPorEmail({
+        codigoInstancia: config.codigo_instancia,
+        nomeOficial: config.nome_oficial,
+        cidade: (config as any).cidade || null,
+        uf: (config as any).uf || null,
+        responsavelNome: (config as any).onboarding_responsavel_nome || null,
+        responsavelEmail: (config as any).onboarding_responsavel_email || null,
+        backendUrl: (config as any).backend_url || null,
+        origem: 'onboarding_publico',
+      });
+      await this.auditoriaService.registrarEvento({
+        acao: envio.ok
+          ? 'SAAS_ALERTA_EMAIL_NOVA_CAMARA_ENVIADO'
+          : 'SAAS_ALERTA_EMAIL_NOVA_CAMARA_FALHA',
+        entidade: 'camara_configuracao',
+        entidadeId: config.id,
+        detalhes: {
+          codigo_instancia: config.codigo_instancia,
+          envio,
+        },
+      });
+    }
 
     return { ok: true, mensagem: 'Onboarding recebido no SaaS.', config };
   }
@@ -625,6 +742,29 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
       },
       contexto,
     });
+
+    if (!existente) {
+      const envio = await this.notificarNovaCamaraPorEmail({
+        codigoInstancia: config.codigo_instancia,
+        nomeOficial: config.nome_oficial,
+        cidade: (config as any).cidade || null,
+        uf: (config as any).uf || null,
+        backendUrl: (config as any).backend_url || null,
+        origem: 'saas_manual',
+      });
+      await this.auditoriaService.registrarEvento({
+        acao: envio.ok
+          ? 'SAAS_ALERTA_EMAIL_NOVA_CAMARA_ENVIADO'
+          : 'SAAS_ALERTA_EMAIL_NOVA_CAMARA_FALHA',
+        entidade: 'camara_configuracao',
+        entidadeId: config.id,
+        detalhes: {
+          codigo_instancia: config.codigo_instancia,
+          envio,
+        },
+        contexto,
+      });
+    }
 
     return { ok: true, config };
   }
@@ -898,6 +1038,144 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
     }
 
     return this.executarResetAdminLocal(body, contexto);
+  }
+
+  private async chamarApiPublicaRecuperacaoInstancia(
+    backendUrl: string,
+    path: '/auth/forgot-password' | '/auth/reset-password',
+    payload: Record<string, any>,
+  ) {
+    const resp = await fetch(`${backendUrl.replace(/\/$/, '')}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    let data: any = null;
+    try {
+      data = await resp.json();
+    } catch {
+      data = null;
+    }
+
+    if (!resp.ok) {
+      return {
+        ok: false,
+        mensagem:
+          data?.message ||
+          data?.mensagem ||
+          `Falha na recuperacao (HTTP ${resp.status}).`,
+      };
+    }
+    return { ok: true, data };
+  }
+
+  async solicitarRecuperacaoAdminInstancia(
+    body: { codigo_instancia: string; email: string },
+    contexto?: AuditoriaContexto,
+  ) {
+    const codigo = (body.codigo_instancia || '').trim().toLowerCase();
+    const email = (body.email || '').trim().toLowerCase();
+    if (!codigo || !email) {
+      return { ok: false, mensagem: 'Codigo da instancia e e-mail sao obrigatorios.' };
+    }
+
+    const instancia = await this.prisma.camara_configuracoes.findUnique({
+      where: { codigo_instancia: codigo },
+    });
+    if (!instancia) return { ok: false, mensagem: 'Instancia nao encontrada.' };
+
+    const backendUrl =
+      (instancia.backend_url || '').trim() ||
+      process.env.PUBLIC_API_BASE_URL?.trim() ||
+      '';
+    if (!backendUrl) {
+      return { ok: false, mensagem: 'Instancia sem backend_url configurado.' };
+    }
+
+    try {
+      const chamada = await this.chamarApiPublicaRecuperacaoInstancia(
+        backendUrl,
+        '/auth/forgot-password',
+        { email },
+      );
+      if (!chamada.ok) return chamada;
+
+      await this.auditoriaService.registrarEvento({
+        acao: 'SAAS_ADMIN_RECUPERACAO_SOLICITADA',
+        entidade: 'camara_configuracao',
+        entidadeId: instancia.id,
+        detalhes: { codigo_instancia: codigo, email },
+        contexto,
+      });
+
+      return {
+        ok: true,
+        mensagem: chamada.data?.message || 'Codigo de recuperacao solicitado.',
+        codigo_teste: chamada.data?.codigo_teste || null,
+      };
+    } catch {
+      return { ok: false, mensagem: 'Falha de conexao com a instancia.' };
+    }
+  }
+
+  async confirmarRecuperacaoAdminInstancia(
+    body: {
+      codigo_instancia: string;
+      email: string;
+      codigo: string;
+      nova_senha: string;
+    },
+    contexto?: AuditoriaContexto,
+  ) {
+    const codigoInstancia = (body.codigo_instancia || '').trim().toLowerCase();
+    const email = (body.email || '').trim().toLowerCase();
+    const codigo = (body.codigo || '').trim();
+    const novaSenha = (body.nova_senha || '').trim();
+    if (!codigoInstancia || !email || !codigo || !novaSenha) {
+      return { ok: false, mensagem: 'Dados incompletos para confirmar recuperacao.' };
+    }
+
+    const instancia = await this.prisma.camara_configuracoes.findUnique({
+      where: { codigo_instancia: codigoInstancia },
+    });
+    if (!instancia) return { ok: false, mensagem: 'Instancia nao encontrada.' };
+
+    const backendUrl =
+      (instancia.backend_url || '').trim() ||
+      process.env.PUBLIC_API_BASE_URL?.trim() ||
+      '';
+    if (!backendUrl) {
+      return { ok: false, mensagem: 'Instancia sem backend_url configurado.' };
+    }
+
+    try {
+      const chamada = await this.chamarApiPublicaRecuperacaoInstancia(
+        backendUrl,
+        '/auth/reset-password',
+        {
+          email,
+          codigo,
+          novaSenha,
+        },
+      );
+      if (!chamada.ok) return chamada;
+
+      await this.auditoriaService.registrarEvento({
+        acao: 'SAAS_ADMIN_RECUPERACAO_CONFIRMADA',
+        entidade: 'camara_configuracao',
+        entidadeId: instancia.id,
+        detalhes: { codigo_instancia: codigoInstancia, email },
+        contexto,
+      });
+
+      return {
+        ok: true,
+        mensagem: chamada.data?.message || 'Senha redefinida com sucesso.',
+      };
+    } catch {
+      return { ok: false, mensagem: 'Falha de conexao com a instancia.' };
+    }
   }
 
   async redefinirCredencialAdminLocal(
