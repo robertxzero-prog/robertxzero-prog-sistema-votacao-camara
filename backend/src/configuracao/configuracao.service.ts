@@ -26,6 +26,10 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
     );
   }
 
+  private isSaasSingleBackendMode() {
+    return process.env.SAAS_SINGLE_BACKEND_MODE === 'true';
+  }
+
   onModuleInit() {
     const intervalMs = Math.max(
       10000,
@@ -91,6 +95,15 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
     codigoInstancia?: string | null,
     opts?: { evitarFallbackGlobal?: boolean },
   ) {
+    if (this.isSaasSingleBackendMode()) {
+      return (
+        this.normalizarBackendUrl(process.env.PUBLIC_API_BASE_URL) ||
+        this.normalizarBackendUrl(process.env.MASTER_API_URL) ||
+        this.normalizarBackendUrl(process.env.DEFAULT_INSTANCE_BACKEND_URL) ||
+        ''
+      );
+    }
+
     const template = (process.env.INSTANCE_BACKEND_URL_TEMPLATE || '').trim();
     const fromTemplate =
       template && codigoInstancia
@@ -1059,6 +1072,14 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
     },
     contexto?: AuditoriaContexto,
   ) {
+    if (this.isSaasSingleBackendMode()) {
+      return {
+        ok: false,
+        mensagem:
+          'Modo unificado ativo: redefinicao remota por instancia desabilitada para evitar alterar o login do SaaS Master.',
+      };
+    }
+
     const codigo = (body.codigo_instancia || '').trim().toLowerCase();
     const senha = (body.nova_senha || '').trim();
     if (!codigo) {
@@ -1189,6 +1210,14 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
     });
     if (!instancia) return { ok: false, mensagem: 'Instancia nao encontrada.' };
 
+    if (this.isSaasSingleBackendMode()) {
+      return {
+        ok: true,
+        mensagem: 'Conexao OK (modo unificado)',
+        detalhe: `onboarding_status: ${(instancia as any).onboarding_status || '-'} | licenca_status: ${(instancia as any).licenca_status || '-'}`,
+      };
+    }
+
     const backendUrl = this.resolverBackendUrlInstancia(
       instancia.backend_url,
       null,
@@ -1259,6 +1288,21 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
       where: { codigo_instancia: codigo },
     });
     if (!instancia) return { ok: false, mensagem: 'Instancia nao encontrada.' };
+
+    if (this.isSaasSingleBackendMode()) {
+      const atualizado = await this.prisma.camara_configuracoes.update({
+        where: { codigo_instancia: codigo },
+        data: {
+          licenca_ultimo_sync_em: new Date(),
+          atualizado_em: new Date(),
+        } as any,
+      });
+      return {
+        ok: true,
+        mensagem: `Sync concluido: ${atualizado.licenca_status || '-'}`,
+        detalhe: `onboarding: ${(atualizado as any).onboarding_status || '-'} | liberado_login: ${atualizado.licenca_status === licenca_status.ATIVA ? 'sim' : 'nao'}`,
+      };
+    }
 
     const backendUrl = this.resolverBackendUrlInstancia(
       instancia.backend_url,
