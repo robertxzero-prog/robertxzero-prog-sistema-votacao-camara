@@ -184,36 +184,34 @@ export default function Home() {
   const mostrarTelaSolicitado = onboardingSolicitado && !forcarCadastro;
 
   return (
-    <main className="min-h-screen bg-slate-200 px-4 pb-6 pt-[12vh] lg:pt-[10vh]">
-      <div className="mx-auto grid w-full max-w-[1366px] items-stretch gap-5 xl:gap-6 2xl:max-w-[1500px] lg:grid-cols-[1fr_1fr]">
-        <section className="relative flex min-h-[470px] flex-col justify-center overflow-hidden rounded-[28px] border border-blue-800/30 bg-gradient-to-br from-blue-900 via-blue-950 to-slate-950 px-7 py-7 text-white shadow-2xl xl:min-h-[495px]">
-          <div className="pointer-events-none absolute -left-20 -top-16 h-72 w-72 rounded-full bg-emerald-500/15 blur-3xl" />
-          <div className="pointer-events-none absolute -bottom-20 -right-12 h-72 w-72 rounded-full bg-cyan-400/10 blur-3xl" />
+    <main className="min-h-screen bg-slate-200 px-4 pb-6 pt-[8vh] lg:pt-[7vh]">
+      <div className="mx-auto grid w-full max-w-[1366px] items-start gap-5 xl:gap-6 2xl:max-w-[1500px] lg:grid-cols-[1fr_1fr]">
+        <section className="relative flex w-full flex-col items-center justify-start overflow-hidden rounded-[28px] border border-blue-800/30 bg-gradient-to-br from-[#0d1f4d] via-[#133a86] to-[#0a2d66] px-8 pb-6 pt-4 text-white shadow-2xl">
 
           <div className="relative mx-auto w-full max-w-[660px] text-center">
-            <div className="mx-auto mb-6 flex w-full max-w-[700px] justify-center">
+            <div className="mx-auto mb-2 flex w-full max-w-[700px] justify-center">
               <Image
                 src="/silcam-logo.png"
                 alt="SILCAM"
                 width={1515}
                 height={607}
-                className="h-auto max-h-[250px] w-full object-contain xl:max-h-[275px]"
+                className="h-auto w-full max-w-[560px] object-contain"
                 priority
               />
             </div>
 
-            <p className="mx-auto max-w-[700px] text-[20px] leading-snug text-blue-100/95 xl:text-[22px]">
+            <p className="mx-auto mt-1 max-w-[700px] text-[20px] leading-snug text-blue-100/95 xl:text-[22px]">
               Painel administrativo para sessões, pautas, votações, atas e relatórios
               oficiais da casa legislativa.
             </p>
           </div>
         </section>
 
-        <section className="w-full min-h-[470px] rounded-[28px] border border-slate-200 bg-white p-7 shadow-xl xl:min-h-[495px] xl:p-8">
+        <section className="w-full rounded-[28px] border border-slate-200 bg-white p-7 shadow-xl xl:p-8">
           {loadingStatus ? (
             <p className="font-semibold text-slate-700">Verificando ativação...</p>
           ) : liberarLogin ? (
-            <div className="flex h-full flex-col justify-center">
+            <div className="flex flex-col justify-start">
               <h2 className="text-[48px] font-black leading-[0.95] text-slate-900 lg:text-[52px] xl:text-[60px]">
                 {modoRecuperacao ? 'Recuperar senha' : 'Acesso administrativo'}
               </h2>
