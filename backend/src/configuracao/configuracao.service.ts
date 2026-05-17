@@ -30,6 +30,11 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
     return process.env.SAAS_SINGLE_BACKEND_MODE === 'true';
   }
 
+  private isCodigoInstanciaReservado(codigo?: string | null) {
+    const normalizado = (codigo || '').trim().toLowerCase();
+    return normalizado === 'default' || normalizado === 'pendente-onboarding';
+  }
+
   onModuleInit() {
     const intervalMs = Math.max(
       10000,
@@ -82,7 +87,9 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
     const hostAlvo = this.extrairHost(url);
     if (!hostAlvo) return false;
     const hostMasterApi = this.extrairHost(process.env.MASTER_API_URL || '');
-    const hostPublicApi = this.extrairHost(process.env.PUBLIC_API_BASE_URL || '');
+    const hostPublicApi = this.extrairHost(
+      process.env.PUBLIC_API_BASE_URL || '',
+    );
     return (
       (hostMasterApi && hostAlvo === hostMasterApi) ||
       (hostPublicApi && hostAlvo === hostPublicApi)
@@ -107,7 +114,10 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
     const template = (process.env.INSTANCE_BACKEND_URL_TEMPLATE || '').trim();
     const fromTemplate =
       template && codigoInstancia
-        ? template.replace('{codigo}', (codigoInstancia || '').trim().toLowerCase())
+        ? template.replace(
+            '{codigo}',
+            (codigoInstancia || '').trim().toLowerCase(),
+          )
         : '';
 
     const resolvedBase =
@@ -121,8 +131,14 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
         '';
     const resolved = resolvedBase || resolvedFallback || '';
 
-    const publicBase = this.normalizarBackendUrl(process.env.PUBLIC_API_BASE_URL);
-    if (this.isLoopbackUrl(resolved) && publicBase && !this.isLoopbackUrl(publicBase)) {
+    const publicBase = this.normalizarBackendUrl(
+      process.env.PUBLIC_API_BASE_URL,
+    );
+    if (
+      this.isLoopbackUrl(resolved) &&
+      publicBase &&
+      !this.isLoopbackUrl(publicBase)
+    ) {
       return publicBase;
     }
     return resolved;
@@ -135,6 +151,7 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
     uf?: string | null;
     responsavelNome?: string | null;
     responsavelEmail?: string | null;
+    responsavelTelefone?: string | null;
     backendUrl?: string | null;
     origem: 'onboarding_publico' | 'saas_manual';
   }) {
@@ -149,14 +166,21 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
     ).trim();
 
     if (!resendApiKey || !emailDestino || !emailRemetente) {
-      return { ok: false, skipped: true, motivo: 'email_nao_configurado' as const };
+      return {
+        ok: false,
+        skipped: true,
+        motivo: 'email_nao_configurado' as const,
+      };
     }
 
     const painelMasterUrl = (
-      process.env.SAAS_MASTER_WEB_URL || 'https://votacam-master-web.onrender.com'
+      process.env.SAAS_MASTER_WEB_URL ||
+      'https://votacam-master-web.onrender.com'
     ).trim();
     const backendUrl = (input.backendUrl || '').trim() || 'nao informado';
-    const local = [input.cidade || null, input.uf || null].filter(Boolean).join('/');
+    const local = [input.cidade || null, input.uf || null]
+      .filter(Boolean)
+      .join('/');
     const assunto = `[VotaCam] Nova camara cadastrada: ${input.nomeOficial}`;
 
     const html = `
@@ -169,6 +193,7 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
           <li><strong>Cidade/UF:</strong> ${local || 'nao informado'}</li>
           <li><strong>Responsavel:</strong> ${input.responsavelNome || 'nao informado'}</li>
           <li><strong>E-mail responsavel:</strong> ${input.responsavelEmail || 'nao informado'}</li>
+          <li><strong>Telefone responsavel:</strong> ${input.responsavelTelefone || 'nao informado'}</li>
           <li><strong>Backend da instancia:</strong> ${backendUrl}</li>
           <li><strong>Origem:</strong> ${input.origem}</li>
         </ul>
@@ -216,11 +241,84 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  private async provisionarAdminLocalAoAtivarLicenca(config: any) {
+    // Nunca alterar credencial no backend que estiver operando como SaaS Master.
+    if (this.isSaasMasterMode()) return;
+
+    const email = (config?.onboarding_responsavel_email || '')
+      .trim()
+      .toLowerCase();
+    if (!email) return;
+
+    const nome =
+      (config?.onboarding_responsavel_nome || 'Administrador').trim() ||
+      'Administrador';
+    const senhaHash = await bcrypt.hash('123456', 10);
+
+    const admin = await this.prisma.usuarios.findFirst({
+      where: { role: 'ADMIN', ativo: true },
+      orderBy: { criado_em: 'asc' },
+    });
+
+    if (!admin) return;
+
+    const emailEmUso = await this.prisma.usuarios.findFirst({
+      where: {
+        email,
+        id: { not: admin.id },
+      },
+      select: { id: true },
+    });
+
+    if (emailEmUso) {
+      // Evita colisão de e-mail sem derrubar o fluxo de liberação.
+      return;
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.usuarios.update({
+        where: { id: admin.id },
+        data: {
+          email,
+          nome,
+          senha_hash: senhaHash,
+          atualizado_em: new Date(),
+        },
+      });
+
+      await tx.auth_sessoes.updateMany({
+        where: { usuario_id: admin.id, revogada_em: null },
+        data: { revogada_em: new Date() },
+      });
+    });
+  }
+
   private async obterRegistroCamaraAtual() {
-    const prefer = (process.env.CAMARA_INSTANCE_CODE || 'default').trim().toLowerCase();
+    const preferEnv = (process.env.CAMARA_INSTANCE_CODE || '')
+      .trim()
+      .toLowerCase();
+    const prefer =
+      preferEnv ||
+      (this.isSaasMasterMode() ? 'default' : 'pendente-onboarding');
     let config = await this.prisma.camara_configuracoes.findUnique({
       where: { codigo_instancia: prefer },
     });
+    if (
+      (!config && prefer === 'pendente-onboarding') ||
+      (config &&
+        !this.isSaasMasterMode() &&
+        this.isCodigoInstanciaReservado(config.codigo_instancia))
+    ) {
+      const instanciaReal = await this.prisma.camara_configuracoes.findFirst({
+        where: {
+          codigo_instancia: { notIn: ['default', 'pendente-onboarding'] },
+        },
+        orderBy: { atualizado_em: 'desc' },
+      });
+      if (instanciaReal) {
+        return instanciaReal;
+      }
+    }
     if (!config && prefer === 'pendente-onboarding') {
       config = await this.prisma.camara_configuracoes.findFirst({
         orderBy: { atualizado_em: 'desc' },
@@ -229,7 +327,7 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
     if (!config) {
       config = await this.prisma.camara_configuracoes.create({
         data: {
-          codigo_instancia: prefer || 'default',
+          codigo_instancia: prefer,
           nome_oficial: 'Camara Municipal',
           licenca_status: licenca_status.TESTE,
         },
@@ -292,11 +390,10 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
           licenca_offline_valor:
             typeof data.config.licenca_offline_valor === 'number'
               ? Math.max(1, data.config.licenca_offline_valor)
-              : (atual as any).licenca_offline_valor ?? 30,
-          licenca_offline_unidade:
-            (data.config.licenca_offline_unidade ||
-              (atual as any).licenca_offline_unidade ||
-              'DIAS') as any,
+              : ((atual as any).licenca_offline_valor ?? 30),
+          licenca_offline_unidade: (data.config.licenca_offline_unidade ||
+            (atual as any).licenca_offline_unidade ||
+            'DIAS') as any,
           onboarding_status:
             data.config.licenca_status === licenca_status.ATIVA
               ? 'APROVADO'
@@ -309,6 +406,15 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
           atualizado_em: new Date(),
         } as any,
       });
+
+      if (data.config.licenca_status === licenca_status.ATIVA) {
+        const atualizado = await this.prisma.camara_configuracoes.findUnique({
+          where: { id: atual.id },
+        });
+        if (atualizado) {
+          await this.provisionarAdminLocalAoAtivarLicenca(atualizado as any);
+        }
+      }
     } catch {
       // Sem rede ou SaaS indisponivel: mantem estado local e segue.
     }
@@ -326,16 +432,19 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
       const codigo = (atual.codigo_instancia || '').trim().toLowerCase();
       if (!codigo) return;
 
-      await fetch(`${masterApi.replace(/\/$/, '')}/configuracao/monitor/heartbeat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          codigo_instancia: codigo,
-          monitor_token: monitorToken,
-          versao: process.env.APP_VERSION || 'local-dev',
-          latencia_ms: 0,
-        }),
-      });
+      await fetch(
+        `${masterApi.replace(/\/$/, '')}/configuracao/monitor/heartbeat`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            codigo_instancia: codigo,
+            monitor_token: monitorToken,
+            versao: process.env.APP_VERSION || 'local-dev',
+            latencia_ms: 0,
+          }),
+        },
+      );
     } finally {
       this.heartbeatRodando = false;
     }
@@ -375,7 +484,9 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
       1,
       Number(config.licenca_offline_valor || 30),
     );
-    const offlineUnidade = (config.licenca_offline_unidade || 'DIAS').toUpperCase();
+    const offlineUnidade = (
+      config.licenca_offline_unidade || 'DIAS'
+    ).toUpperCase();
     const mult =
       offlineUnidade === 'ANOS'
         ? 365 * 24 * 60 * 60 * 1000
@@ -472,8 +583,11 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
         licenca_status: licenca_status.TESTE,
         onboarding_status: 'SOLICITADO',
         onboarding_responsavel_nome: body.responsavel_nome.trim(),
-        onboarding_responsavel_email: body.responsavel_email.trim().toLowerCase(),
-        onboarding_responsavel_telefone: body.responsavel_telefone?.trim() || null,
+        onboarding_responsavel_email: body.responsavel_email
+          .trim()
+          .toLowerCase(),
+        onboarding_responsavel_telefone:
+          body.responsavel_telefone?.trim() || null,
         onboarding_enviado_em: new Date(),
         atualizado_em: new Date(),
       } as any,
@@ -482,7 +596,8 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
     if (
       existenteMesmoCodigo &&
       existenteMesmoCodigo.id !== atual.id &&
-      (atual.codigo_instancia || '').trim().toLowerCase() === 'pendente-onboarding'
+      this.isCodigoInstanciaReservado(atual.codigo_instancia) &&
+      !this.isSaasMasterMode()
     ) {
       await this.prisma.camara_configuracoes.delete({
         where: { id: atual.id },
@@ -494,30 +609,33 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
     const sharedKey = (process.env.ONBOARDING_SHARED_KEY || '').trim();
     if (masterApi && sharedKey) {
       try {
-        const resp = await fetch(`${masterApi.replace(/\/$/, '')}/configuracao/onboarding/registro-publico`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-onboarding-key': sharedKey,
+        const resp = await fetch(
+          `${masterApi.replace(/\/$/, '')}/configuracao/onboarding/registro-publico`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-onboarding-key': sharedKey,
+            },
+            body: JSON.stringify({
+              codigo_instancia: codigo,
+              nome_oficial: body.nome_oficial,
+              backend_url:
+                this.resolverBackendUrlInstancia(
+                  body.backend_url,
+                  process.env.PUBLIC_API_BASE_URL,
+                  codigo,
+                ) || null,
+              cidade: body.cidade || null,
+              uf: body.uf || null,
+              responsavel_nome: body.responsavel_nome,
+              responsavel_email: body.responsavel_email,
+              responsavel_telefone: body.responsavel_telefone || null,
+              origem_ip: contexto?.ip || null,
+              origem_user_agent: contexto?.userAgent || null,
+            }),
           },
-          body: JSON.stringify({
-            codigo_instancia: codigo,
-            nome_oficial: body.nome_oficial,
-            backend_url:
-              this.resolverBackendUrlInstancia(
-                body.backend_url,
-                process.env.PUBLIC_API_BASE_URL,
-                codigo,
-              ) || null,
-            cidade: body.cidade || null,
-            uf: body.uf || null,
-            responsavel_nome: body.responsavel_nome,
-            responsavel_email: body.responsavel_email,
-            responsavel_telefone: body.responsavel_telefone || null,
-            origem_ip: contexto?.ip || null,
-            origem_user_agent: contexto?.userAgent || null,
-          }),
-        });
+        );
         sincronizadoNoSaas = resp.ok;
       } catch {
         sincronizadoNoSaas = false;
@@ -590,8 +708,11 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
         licenca_status: licenca_status.TESTE,
         onboarding_status: 'SOLICITADO',
         onboarding_responsavel_nome: body.responsavel_nome.trim(),
-        onboarding_responsavel_email: body.responsavel_email.trim().toLowerCase(),
-        onboarding_responsavel_telefone: body.responsavel_telefone?.trim() || null,
+        onboarding_responsavel_email: body.responsavel_email
+          .trim()
+          .toLowerCase(),
+        onboarding_responsavel_telefone:
+          body.responsavel_telefone?.trim() || null,
         onboarding_enviado_em: new Date(),
       } as any,
       update: {
@@ -606,8 +727,11 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
         uf: body.uf?.trim().toUpperCase() || null,
         onboarding_status: 'SOLICITADO',
         onboarding_responsavel_nome: body.responsavel_nome.trim(),
-        onboarding_responsavel_email: body.responsavel_email.trim().toLowerCase(),
-        onboarding_responsavel_telefone: body.responsavel_telefone?.trim() || null,
+        onboarding_responsavel_email: body.responsavel_email
+          .trim()
+          .toLowerCase(),
+        onboarding_responsavel_telefone:
+          body.responsavel_telefone?.trim() || null,
         onboarding_enviado_em: new Date(),
         atualizado_em: new Date(),
       } as any,
@@ -631,6 +755,8 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
         uf: (config as any).uf || null,
         responsavelNome: (config as any).onboarding_responsavel_nome || null,
         responsavelEmail: (config as any).onboarding_responsavel_email || null,
+        responsavelTelefone:
+          (config as any).onboarding_responsavel_telefone || null,
         backendUrl: (config as any).backend_url || null,
         origem: 'onboarding_publico',
       });
@@ -746,16 +872,19 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
         licenca_offline_valor:
           typeof body.licenca_offline_valor === 'number'
             ? Math.max(1, body.licenca_offline_valor)
-            : (atual.config as any).licenca_offline_valor ?? 30,
-        licenca_offline_unidade:
-          (body.licenca_offline_unidade || (atual.config as any).licenca_offline_unidade || 'DIAS') as any,
+            : ((atual.config as any).licenca_offline_valor ?? 30),
+        licenca_offline_unidade: (body.licenca_offline_unidade ||
+          (atual.config as any).licenca_offline_unidade ||
+          'DIAS') as any,
         licenca_ultimo_sync_em: new Date(),
         onboarding_status:
-          (body.licenca_status || atual.config.licenca_status) === licenca_status.ATIVA
+          (body.licenca_status || atual.config.licenca_status) ===
+          licenca_status.ATIVA
             ? 'APROVADO'
             : (atual.config as any).onboarding_status || 'SOLICITADO',
         onboarding_aprovado_em:
-          (body.licenca_status || atual.config.licenca_status) === licenca_status.ATIVA
+          (body.licenca_status || atual.config.licenca_status) ===
+          licenca_status.ATIVA
             ? new Date()
             : (atual.config as any).onboarding_aprovado_em || null,
         atualizado_em: new Date(),
@@ -809,7 +938,7 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
       licenca_status?: licenca_status;
       licenca_expira_em?: string | null;
       licenca_offline_valor?: number | null;
-    licenca_offline_unidade?: 'DIAS' | 'MESES' | 'ANOS' | null;
+      licenca_offline_unidade?: 'DIAS' | 'MESES' | 'ANOS' | null;
     },
     contexto?: AuditoriaContexto,
   ) {
@@ -828,7 +957,8 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
         tenant_slug: body.tenant_slug ?? null,
         plano_nome: body.plano_nome ?? 'Plano Basico',
         backend_url:
-          this.resolverBackendUrlInstancia(body.backend_url, null, codigo) || null,
+          this.resolverBackendUrlInstancia(body.backend_url, null, codigo) ||
+          null,
         cidade: body.cidade ?? null,
         uf: body.uf?.toUpperCase() ?? null,
         licenca_status: body.licenca_status || licenca_status.TESTE,
@@ -839,7 +969,8 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
           typeof body.licenca_offline_valor === 'number'
             ? Math.max(1, body.licenca_offline_valor)
             : 30,
-        licenca_offline_unidade: (body.licenca_offline_unidade || 'DIAS') as any,
+        licenca_offline_unidade: (body.licenca_offline_unidade ||
+          'DIAS') as any,
         licenca_ultimo_sync_em: new Date(),
       } as any,
       update: {
@@ -848,7 +979,8 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
         tenant_slug: body.tenant_slug ?? null,
         plano_nome: body.plano_nome ?? 'Plano Basico',
         backend_url:
-          this.resolverBackendUrlInstancia(body.backend_url, null, codigo) || null,
+          this.resolverBackendUrlInstancia(body.backend_url, null, codigo) ||
+          null,
         cidade: body.cidade ?? null,
         uf: body.uf?.toUpperCase() ?? null,
         licenca_status: body.licenca_status || licenca_status.TESTE,
@@ -859,7 +991,8 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
           typeof body.licenca_offline_valor === 'number'
             ? Math.max(1, body.licenca_offline_valor)
             : undefined,
-        licenca_offline_unidade: (body.licenca_offline_unidade || undefined) as any,
+        licenca_offline_unidade: (body.licenca_offline_unidade ||
+          undefined) as any,
         licenca_ultimo_sync_em: new Date(),
         atualizado_em: new Date(),
       } as any,
@@ -884,6 +1017,10 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
         nomeOficial: config.nome_oficial,
         cidade: (config as any).cidade || null,
         uf: (config as any).uf || null,
+        responsavelNome: (config as any).onboarding_responsavel_nome || null,
+        responsavelEmail: (config as any).onboarding_responsavel_email || null,
+        responsavelTelefone:
+          (config as any).onboarding_responsavel_telefone || null,
         backendUrl: (config as any).backend_url || null,
         origem: 'saas_manual',
       });
@@ -964,7 +1101,10 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
     return { ok: true, mensagem: 'Token de monitoramento revogado.' };
   }
 
-  async excluirInstancia(codigoInstancia: string, contexto?: AuditoriaContexto) {
+  async excluirInstancia(
+    codigoInstancia: string,
+    contexto?: AuditoriaContexto,
+  ) {
     const codigo = codigoInstancia.trim().toLowerCase();
     if (codigo === 'default') {
       return {
@@ -1086,7 +1226,10 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
       return { ok: false, mensagem: 'Codigo da instancia obrigatorio.' };
     }
     if (senha.length < 6) {
-      return { ok: false, mensagem: 'Nova senha deve ter pelo menos 6 caracteres.' };
+      return {
+        ok: false,
+        mensagem: 'Nova senha deve ter pelo menos 6 caracteres.',
+      };
     }
 
     const instanciaAlvo = await this.prisma.camara_configuracoes.findUnique({
@@ -1100,34 +1243,37 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
     const codigoAtual = (atual.codigo_instancia || '').trim().toLowerCase();
     const isInstanciaLocal = codigoAtual === codigo;
 
-      if (!isInstanciaLocal) {
-        const backendUrl = this.resolverBackendUrlInstancia(
-          instanciaAlvo.backend_url,
-          null,
-          codigo,
-          { evitarFallbackGlobal: true },
-        );
-        if (!backendUrl) {
-          return {
-            ok: false,
-            mensagem:
-              'Backend da instancia nao encontrado. Configure backend_url da instancia ou INSTANCE_BACKEND_URL_TEMPLATE no SaaS Master.',
-          };
-        }
-        if (this.backendApontaParaSaasMaster(backendUrl)) {
-          return {
-            ok: false,
-            mensagem:
-              'Backend da instancia aponta para o proprio SaaS Master. Configure a URL da API da camara.',
-          };
-        }
+    if (!isInstanciaLocal) {
+      const backendUrl = this.resolverBackendUrlInstancia(
+        instanciaAlvo.backend_url,
+        null,
+        codigo,
+        { evitarFallbackGlobal: true },
+      );
+      if (!backendUrl) {
+        return {
+          ok: false,
+          mensagem:
+            'Backend da instancia nao encontrado. Configure backend_url da instancia ou INSTANCE_BACKEND_URL_TEMPLATE no SaaS Master.',
+        };
+      }
+      if (this.backendApontaParaSaasMaster(backendUrl)) {
+        return {
+          ok: false,
+          mensagem:
+            'Backend da instancia aponta para o proprio SaaS Master. Configure a URL da API da camara.',
+        };
+      }
 
       const masterInstanceAdminKey = (
         process.env.MASTER_INSTANCE_ADMIN_KEY || ''
       ).trim();
-      const onboardingSharedKey = (process.env.ONBOARDING_SHARED_KEY || '').trim();
+      const onboardingSharedKey = (
+        process.env.ONBOARDING_SHARED_KEY || ''
+      ).trim();
       const chaveOperacao = masterInstanceAdminKey || onboardingSharedKey;
-      const usarFallbackOnboarding = !masterInstanceAdminKey && !!onboardingSharedKey;
+      const usarFallbackOnboarding =
+        !masterInstanceAdminKey && !!onboardingSharedKey;
       if (!chaveOperacao) {
         return {
           ok: false,
@@ -1203,7 +1349,8 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
 
   async testarConexaoInstancia(codigoInstancia: string) {
     const codigo = (codigoInstancia || '').trim().toLowerCase();
-    if (!codigo) return { ok: false, mensagem: 'Codigo da instancia obrigatorio.' };
+    if (!codigo)
+      return { ok: false, mensagem: 'Codigo da instancia obrigatorio.' };
 
     const instancia = await this.prisma.camara_configuracoes.findUnique({
       where: { codigo_instancia: codigo },
@@ -1221,7 +1368,7 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
     const backendUrl = this.resolverBackendUrlInstancia(
       instancia.backend_url,
       null,
-      codigo,
+      codigoInstancia,
       { evitarFallbackGlobal: true },
     );
     if (!backendUrl) {
@@ -1268,7 +1415,10 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
       };
     } catch (err: any) {
       if (err?.name === 'AbortError') {
-        return { ok: false, mensagem: 'Timeout (8s) ao conectar na instancia.' };
+        return {
+          ok: false,
+          mensagem: 'Timeout (8s) ao conectar na instancia.',
+        };
       }
       return {
         ok: false,
@@ -1282,7 +1432,8 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
 
   async sincronizarLicencaInstanciaAgora(codigoInstancia: string) {
     const codigo = (codigoInstancia || '').trim().toLowerCase();
-    if (!codigo) return { ok: false, mensagem: 'Codigo da instancia obrigatorio.' };
+    if (!codigo)
+      return { ok: false, mensagem: 'Codigo da instancia obrigatorio.' };
 
     const instancia = await this.prisma.camara_configuracoes.findUnique({
       where: { codigo_instancia: codigo },
@@ -1307,7 +1458,7 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
     const backendUrl = this.resolverBackendUrlInstancia(
       instancia.backend_url,
       null,
-      codigo,
+      codigoInstancia,
       { evitarFallbackGlobal: true },
     );
     if (!backendUrl) {
@@ -1400,7 +1551,10 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
     const codigo = (body.codigo_instancia || '').trim().toLowerCase();
     const email = (body.email || '').trim().toLowerCase();
     if (!codigo || !email) {
-      return { ok: false, mensagem: 'Codigo da instancia e e-mail sao obrigatorios.' };
+      return {
+        ok: false,
+        mensagem: 'Codigo da instancia e e-mail sao obrigatorios.',
+      };
     }
 
     const instancia = await this.prisma.camara_configuracoes.findUnique({
@@ -1448,7 +1602,6 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
       return {
         ok: true,
         mensagem: chamada.data?.message || 'Codigo de recuperacao solicitado.',
-        codigo_teste: chamada.data?.codigo_teste || null,
       };
     } catch {
       return { ok: false, mensagem: 'Falha de conexao com a instancia.' };
@@ -1469,7 +1622,10 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
     const codigo = (body.codigo || '').trim();
     const novaSenha = (body.nova_senha || '').trim();
     if (!codigoInstancia || !email || !codigo || !novaSenha) {
-      return { ok: false, mensagem: 'Dados incompletos para confirmar recuperacao.' };
+      return {
+        ok: false,
+        mensagem: 'Dados incompletos para confirmar recuperacao.',
+      };
     }
 
     const instancia = await this.prisma.camara_configuracoes.findUnique({
@@ -1480,7 +1636,7 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
     const backendUrl = this.resolverBackendUrlInstancia(
       instancia.backend_url,
       null,
-      codigo,
+      codigoInstancia,
       { evitarFallbackGlobal: true },
     );
     if (!backendUrl) {
@@ -1543,7 +1699,9 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
     const autorizadoViaMaster =
       !!localMasterKey && !!masterAdminKey && masterAdminKey === localMasterKey;
     const autorizadoViaOnboarding =
-      !!localOnboardingKey && !!onboardingKey && onboardingKey === localOnboardingKey;
+      !!localOnboardingKey &&
+      !!onboardingKey &&
+      onboardingKey === localOnboardingKey;
     if (!autorizadoViaMaster && !autorizadoViaOnboarding) {
       return { ok: false, mensagem: 'Chave de administracao invalida.' };
     }
@@ -1578,7 +1736,10 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
       };
     }
     if (senha.length < 6) {
-      return { ok: false, mensagem: 'Nova senha deve ter pelo menos 6 caracteres.' };
+      return {
+        ok: false,
+        mensagem: 'Nova senha deve ter pelo menos 6 caracteres.',
+      };
     }
 
     const admin = await this.prisma.usuarios.findFirst({
@@ -1597,7 +1758,10 @@ export class ConfiguracaoService implements OnModuleInit, OnModuleDestroy {
         select: { id: true },
       });
       if (emailEmUso) {
-        return { ok: false, mensagem: 'E-mail ja esta em uso por outro usuario.' };
+        return {
+          ok: false,
+          mensagem: 'E-mail ja esta em uso por outro usuario.',
+        };
       }
     }
 
