@@ -280,6 +280,39 @@ export class SessoesService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
+  async buscarSessaoAtiva() {
+    const sessao = await this.prisma.sessoes.findFirst({
+      where: {
+        status: {
+          in: ['ABERTA', 'EM_ANDAMENTO'],
+        },
+      },
+      select: {
+        id: true,
+        titulo: true,
+        descricao: true,
+        data_sessao: true,
+        status: true,
+        etapa_atual: true,
+        etapa_titulo: true,
+        etapa_descricao: true,
+      },
+      orderBy: [
+        { data_sessao: 'desc' },
+        { criado_em: 'desc' },
+      ],
+    });
+
+    if (!sessao) {
+      return null;
+    }
+
+    return {
+      ...sessao,
+      etapa: sessao.etapa_atual || 'ABERTURA',
+    };
+  }
+
   async atualizarEtapaAtual(
     sessaoId: string,
     etapa: EtapaSessaoDto,
@@ -345,7 +378,7 @@ export class SessoesService implements OnModuleInit, OnModuleDestroy {
         etapa,
       )
     ) {
-      await this.chamarProximoAutomaticoSeDisponivel(sessaoId, etapa as TipoFalaSessaoDto);
+      await this.marcarProximoComoChamadoSeDisponivel(sessaoId, etapa as TipoFalaSessaoDto);
     }
 
     await this.auditoriaService.registrarEvento({
@@ -783,14 +816,6 @@ export class SessoesService implements OnModuleInit, OnModuleDestroy {
       data: { status: 'CHAMADO', chamada_em: new Date() },
     });
 
-    const fala = await this.atualizarOradorAtual(
-      sessaoId,
-      proximo.vereador_id,
-      proximo.tipo_fala as any,
-      undefined,
-      contexto,
-    );
-
     const fila = await this.listarFilaOradores(sessaoId);
     this.presencasGateway.emitirFilaOradoresAtualizada(fila);
     await this.auditoriaService.registrarEvento({
@@ -803,7 +828,44 @@ export class SessoesService implements OnModuleInit, OnModuleDestroy {
       },
       contexto,
     });
-    return { ok: true, fala };
+    return {
+      ok: true,
+      mensagem: 'Orador chamado. Inicie o cronometro quando ele estiver pronto.',
+      chamado: {
+        fila_item_id: proximo.id,
+        vereador_id: proximo.vereador_id,
+        tipo_fala: proximo.tipo_fala,
+        vereador: {
+          vereador_id: proximo.vereador_id,
+          nome: proximo.vereadores.usuarios.nome,
+          foto_url: proximo.vereadores.usuarios.foto_url,
+          partido: proximo.vereadores.partido,
+          cadeira: proximo.vereadores.cadeiras.numero,
+        },
+      },
+    };
+  }
+
+  async iniciarFalaChamada(sessaoId: string, contexto?: AuditoriaContexto) {
+    const chamado = await this.prisma.fila_oradores.findFirst({
+      where: {
+        sessao_id: sessaoId,
+        status: 'CHAMADO',
+      },
+      orderBy: { chamada_em: 'asc' },
+    });
+
+    if (!chamado) {
+      return { ok: false, mensagem: 'Nenhum orador chamado para iniciar.' };
+    }
+
+    return this.atualizarOradorAtual(
+      sessaoId,
+      chamado.vereador_id,
+      chamado.tipo_fala as any,
+      undefined,
+      contexto,
+    );
   }
 
   async encerrarFalaAtual(sessaoId: string, contexto?: AuditoriaContexto) {
@@ -907,7 +969,7 @@ export class SessoesService implements OnModuleInit, OnModuleDestroy {
     return { ok: true, mensagem: 'Item removido da fila.' };
   }
 
-  private async chamarProximoAutomaticoSeDisponivel(
+  private async marcarProximoComoChamadoSeDisponivel(
     sessaoId: string,
     tipoFala: TipoFalaSessaoDto,
   ) {
@@ -931,13 +993,6 @@ export class SessoesService implements OnModuleInit, OnModuleDestroy {
       where: { id: proximo.id },
       data: { status: 'CHAMADO', chamada_em: new Date() },
     });
-
-    await this.atualizarOradorAtual(
-      sessaoId,
-      proximo.vereador_id,
-      proximo.tipo_fala as any,
-      undefined,
-    );
 
     const fila = await this.listarFilaOradores(sessaoId);
     this.presencasGateway.emitirFilaOradoresAtualizada(fila);
@@ -976,7 +1031,10 @@ export class SessoesService implements OnModuleInit, OnModuleDestroy {
           sessao.etapa_atual === 'ORDEM_DO_DIA' ||
           sessao.etapa_atual === 'EXPLICACOES_PESSOAIS'
         ) {
-          await this.chamarProximoOrador(sessao.id);
+          await this.marcarProximoComoChamadoSeDisponivel(
+            sessao.id,
+            sessao.etapa_atual as TipoFalaSessaoDto,
+          );
         }
       }
     } finally {

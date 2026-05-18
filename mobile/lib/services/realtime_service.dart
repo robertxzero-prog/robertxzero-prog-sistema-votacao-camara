@@ -13,6 +13,9 @@ class RealtimeService {
     required void Function(dynamic data) onVotoRegistrado,
     required void Function(dynamic data) onPresencaAtualizada,
     required void Function(bool connected) onConnectionChanged,
+    void Function(dynamic data)? onSessaoEtapaAtualizada,
+    void Function(dynamic data)? onOradorAtualizado,
+    void Function(dynamic data)? onFilaOradoresAtualizada,
   }) {
     disconnect();
 
@@ -49,6 +52,9 @@ class RealtimeService {
       ..on('votacao_encerrada', onVotacaoEncerrada)
       ..on('voto_registrado', onVotoRegistrado)
       ..on('presenca_atualizada', onPresencaAtualizada)
+      ..on('sessao_etapa_atualizada', onSessaoEtapaAtualizada ?? (_) {})
+      ..on('sessao_orador_atualizado', onOradorAtualizado ?? (_) {})
+      ..on('fila_oradores_atualizada', onFilaOradoresAtualizada ?? (_) {})
       ..connect();
   }
 

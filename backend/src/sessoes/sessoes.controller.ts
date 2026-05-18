@@ -37,6 +37,12 @@ export class SessoesController {
   }
 
   @UseGuards(AuthGuard('jwt'))
+  @Get('ativa')
+  buscarSessaoAtiva() {
+    return this.sessoesService.buscarSessaoAtiva();
+  }
+
+  @UseGuards(AuthGuard('jwt'))
   @Post()
   criarSessao(
     @Req() req: any,
@@ -169,6 +175,15 @@ export class SessoesController {
   @Post(':id/fila-oradores/chamar-proximo')
   chamarProximo(@Param('id') id: string, @Req() req: any) {
     return this.sessoesService.chamarProximoOrador(
+      id,
+      extrairContextoAuditoria(req),
+    );
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Post(':id/fila-oradores/iniciar-fala')
+  iniciarFalaChamada(@Param('id') id: string, @Req() req: any) {
+    return this.sessoesService.iniciarFalaChamada(
       id,
       extrairContextoAuditoria(req),
     );

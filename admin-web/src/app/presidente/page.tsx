@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { io, Socket } from "socket.io-client";
@@ -141,6 +141,15 @@ type ResultadoEncerramento = {
   };
 };
 
+type SessaoAtiva = {
+  id: string;
+  titulo: string;
+  descricao?: string | null;
+  status?: string | null;
+  etapa?: EtapaSessao;
+  etapa_atual?: EtapaSessao;
+};
+
 function textoTipoMaioria(tipo?: TipoMaioria) {
   const textos: Record<TipoMaioria, string> = {
     SIMPLES: "Maioria simples",
@@ -174,9 +183,10 @@ function votosNecessarios(tipo?: TipoMaioria, presentes = 0) {
   return Math.floor(presentes / 2) + 1;
 }
 
-export default function PresidentePage() {
+export default function ControleSessaoPage() {
   const [pautas, setPautas] = useState<Pauta[]>([]);
   const [votacao, setVotacao] = useState<VotacaoAtiva | null>(null);
+  const [sessaoAtiva, setSessaoAtiva] = useState<SessaoAtiva | null>(null);
   const [quorum, setQuorum] = useState<Quorum | null>(null);
   const [resultado, setResultado] = useState<ResultadoEncerramento | null>(
     null,
@@ -186,6 +196,8 @@ export default function PresidentePage() {
   const [conectado, setConectado] = useState(false);
   const [mensagem, setMensagem] = useState("Carregando painel...");
   const [etapaSessao, setEtapaSessao] = useState<EtapaSessao>("ABERTURA");
+  const [etapaTitulo, setEtapaTitulo] = useState("");
+  const [etapaDescricao, setEtapaDescricao] = useState("");
   const [vereadores, setVereadores] = useState<VereadorItem[]>([]);
   const [oradorAtual, setOradorAtual] = useState<OradorAtual | null>(null);
   const [oradorVereadorId, setOradorVereadorId] = useState("");
@@ -210,7 +222,7 @@ export default function PresidentePage() {
       !pauta.votacoes?.some((item) => item.status === "ABERTA") &&
       !pauta.votacoes?.some((item) => item.status === "ENCERRADA"),
   );
-  const sessaoAtualId = votacao?.pautas?.sessao_id || pautas[0]?.sessao_id;
+  const sessaoAtualId = votacao?.pautas?.sessao_id || sessaoAtiva?.id || pautas[0]?.sessao_id;
   const tiposFalaPermitidos =
     etapaSessao === "ORDEM_DO_DIA"
       ? (["ORDEM_DO_DIA"] as TipoFalaSessao[])
@@ -232,6 +244,75 @@ export default function PresidentePage() {
     return mapa[tipo];
   }
 
+  const etapasSessao: Array<{ key: EtapaSessao; label: string; hint: string }> = [
+    { key: "ABERTURA", label: "Abertura", hint: "Instalação" },
+    { key: "LEITURA_BIBLICA", label: "Leitura bíblica", hint: "Opcional" },
+    { key: "CHAMADA_VEREADORES", label: "Chamada", hint: "Presenças" },
+    { key: "VERIFICACAO_QUORUM", label: "Quórum", hint: "Declaração" },
+    { key: "LEITURA_EXPEDIENTE", label: "Expediente", hint: "Ata e matérias" },
+    { key: "PEQUENAS_COMUNICACOES", label: "Comunicações", hint: "Falas breves" },
+    { key: "GRANDE_EXPEDIENTE", label: "Grande expediente", hint: "Oradores" },
+    { key: "ORDEM_DO_DIA", label: "Ordem do dia", hint: "Discussão e voto" },
+    { key: "RESULTADO", label: "Resultado", hint: "Apuração" },
+    { key: "EXPLICACOES_PESSOAIS", label: "Explicações", hint: "Final" },
+    { key: "ENCERRAMENTO", label: "Encerramento", hint: "Ata final" },
+  ];
+  const etapaAtualIndex = Math.max(
+    0,
+    etapasSessao.findIndex((item) => item.key === etapaSessao),
+  );
+  const etapaAtualInfo = etapasSessao[etapaAtualIndex] || etapasSessao[0];
+  const progressoEtapa =
+    etapasSessao.length > 1
+      ? Math.round((etapaAtualIndex / (etapasSessao.length - 1)) * 100)
+      : 0;
+  const textosPadraoEtapa: Record<EtapaSessao, { titulo: string; descricao: string }> = {
+    ABERTURA: {
+      titulo: "Abertura da sessão",
+      descricao: "Declaro aberta a sessão ordinária da Câmara Municipal.",
+    },
+    LEITURA_BIBLICA: {
+      titulo: "Leitura bíblica",
+      descricao: "Momento de leitura e reflexão para abertura dos trabalhos legislativos.",
+    },
+    CHAMADA_VEREADORES: {
+      titulo: "Chamada dos vereadores",
+      descricao: "Registro nominal de presença dos vereadores.",
+    },
+    VERIFICACAO_QUORUM: {
+      titulo: "Verificação de quórum",
+      descricao: "Verificação do quórum regimental para continuidade dos trabalhos.",
+    },
+    LEITURA_EXPEDIENTE: {
+      titulo: "Leitura do expediente",
+      descricao: "Leitura das matérias protocoladas e comunicações oficiais recebidas pela Mesa Diretora.",
+    },
+    PEQUENAS_COMUNICACOES: {
+      titulo: "Pequenas comunicações",
+      descricao: "Uso da palavra para comunicações breves dos vereadores.",
+    },
+    GRANDE_EXPEDIENTE: {
+      titulo: "Grande expediente",
+      descricao: "Pronunciamentos dos vereadores inscritos para uso da palavra.",
+    },
+    ORDEM_DO_DIA: {
+      titulo: "Ordem do dia",
+      descricao: "Discussão e votação das matérias constantes na pauta.",
+    },
+    RESULTADO: {
+      titulo: "Resultado da votação",
+      descricao: "Proclamação do resultado da votação pelo sistema.",
+    },
+    EXPLICACOES_PESSOAIS: {
+      titulo: "Explicações pessoais",
+      descricao: "Pronunciamentos finais dos vereadores inscritos.",
+    },
+    ENCERRAMENTO: {
+      titulo: "Encerramento da sessão",
+      descricao: "Nada mais havendo a tratar, declaro encerrada a presente sessão.",
+    },
+  };
+
   async function carregarQuorum(sessaoId?: string) {
     if (!sessaoId) {
       setQuorum(null);
@@ -245,11 +326,18 @@ export default function PresidentePage() {
   async function carregarEtapa(sessaoId?: string) {
     if (!sessaoId) {
       setEtapaSessao("ABERTURA");
+      setEtapaTitulo("");
+      setEtapaDescricao("");
       return;
     }
 
     const response = await api.get(`/sessoes/${sessaoId}/etapa`);
-    setEtapaSessao((response.data?.etapa as EtapaSessao) || "ABERTURA");
+    const etapaAtual = (response.data?.etapa as EtapaSessao) || "ABERTURA";
+    setEtapaSessao(etapaAtual);
+    setEtapaTitulo(response.data?.etapa_titulo || textosPadraoEtapa[etapaAtual].titulo);
+    setEtapaDescricao(
+      response.data?.etapa_descricao || textosPadraoEtapa[etapaAtual].descricao,
+    );
   }
 
   async function carregarVereadores() {
@@ -289,24 +377,31 @@ export default function PresidentePage() {
     try {
       setLoading(true);
 
-      const [votacaoResponse, pautasResponse] = await Promise.all([
+      const [votacaoResponse, pautasResponse, sessaoResponse] = await Promise.all([
         api.get("/votacoes/ativa"),
         api.get("/pautas"),
+        api.get("/sessoes/ativa"),
       ]);
 
       setVotacao(votacaoResponse.data);
       setPautas(pautasResponse.data);
+      setSessaoAtiva(sessaoResponse.data);
       setResultado(null);
 
-      await carregarQuorum(votacaoResponse.data?.pautas?.sessao_id);
-      await carregarEtapa(votacaoResponse.data?.pautas?.sessao_id);
+      const painelSessaoId =
+        votacaoResponse.data?.pautas?.sessao_id ||
+        sessaoResponse.data?.id ||
+        pautasResponse.data?.[0]?.sessao_id;
+
+      await carregarQuorum(painelSessaoId);
+      await carregarEtapa(painelSessaoId);
       await carregarVereadores();
-      await carregarOrador(votacaoResponse.data?.pautas?.sessao_id);
-      await carregarFilaOradores(votacaoResponse.data?.pautas?.sessao_id);
+      await carregarOrador(painelSessaoId);
+      await carregarFilaOradores(painelSessaoId);
       setMensagem("Painel atualizado");
     } catch (error) {
       console.error(error);
-      alert("Erro ao carregar painel do presidente.");
+      alert("Erro ao carregar controle da sessão.");
     } finally {
       setLoading(false);
     }
@@ -359,11 +454,26 @@ export default function PresidentePage() {
     }
   }
 
-  async function atualizarEtapaSessao(sessaoId: string, etapa: EtapaSessao) {
+  async function atualizarEtapaSessao(
+    sessaoId: string,
+    etapa: EtapaSessao,
+    usarTextoPadrao = false,
+  ) {
+    const textoPadrao = textosPadraoEtapa[etapa];
+    const tituloFinal = usarTextoPadrao ? textoPadrao.titulo : etapaTitulo || textoPadrao.titulo;
+    const descricaoFinal = usarTextoPadrao
+      ? textoPadrao.descricao
+      : etapaDescricao || textoPadrao.descricao;
     try {
       setProcessando(true);
-      await api.patch(`/sessoes/${sessaoId}/etapa`, { etapa });
+      await api.patch(`/sessoes/${sessaoId}/etapa`, {
+        etapa,
+        titulo: tituloFinal,
+        descricao: descricaoFinal,
+      });
       setEtapaSessao(etapa);
+      setEtapaTitulo(tituloFinal);
+      setEtapaDescricao(descricaoFinal);
       setMensagem("Etapa da sessão atualizada");
     } catch (error: any) {
       console.error(error);
@@ -371,6 +481,20 @@ export default function PresidentePage() {
     } finally {
       setProcessando(false);
     }
+  }
+
+  async function salvarTextoTelao() {
+    if (!sessaoAtualId) {
+      alert("Nenhuma sessão disponível para atualizar o telão.");
+      return;
+    }
+    await atualizarEtapaSessao(sessaoAtualId, etapaSessao);
+  }
+
+  function aplicarModeloTextoEtapa() {
+    const textoPadrao = textosPadraoEtapa[etapaSessao];
+    setEtapaTitulo(textoPadrao.titulo);
+    setEtapaDescricao(textoPadrao.descricao);
   }
 
   async function iniciarFalaOrador() {
@@ -400,6 +524,32 @@ export default function PresidentePage() {
     } catch (error: any) {
       console.error(error);
       alert(error?.response?.data?.message || "Erro ao iniciar fala.");
+    } finally {
+      setProcessando(false);
+    }
+  }
+
+  async function adicionarOradorNaFila() {
+    if (!sessaoAtualId) {
+      alert("Nenhuma sessão disponível para cadastrar fala.");
+      return;
+    }
+    if (!oradorVereadorId) {
+      alert("Selecione um vereador para adicionar à fila.");
+      return;
+    }
+
+    try {
+      setProcessando(true);
+      const response = await api.post(`/sessoes/${sessaoAtualId}/fila-oradores/planejar`, {
+        vereador_id: oradorVereadorId,
+        tipo_fala: oradorTipoFala,
+      });
+      await carregarFilaOradores(sessaoAtualId);
+      setMensagem(response.data?.mensagem || "Vereador adicionado à fila de fala");
+    } catch (error: any) {
+      console.error(error);
+      alert(error?.response?.data?.message || "Erro ao adicionar vereador na fila.");
     } finally {
       setProcessando(false);
     }
@@ -522,9 +672,24 @@ export default function PresidentePage() {
       await api.post(`/sessoes/${sessaoAtualId}/fila-oradores/chamar-proximo`);
       await carregarOrador(sessaoAtualId);
       await carregarFilaOradores(sessaoAtualId);
-      setMensagem("Próximo orador chamado");
+      setMensagem("Próximo orador chamado. Inicie o cronômetro quando estiver pronto.");
     } catch (error: any) {
       alert(error?.response?.data?.message || "Erro ao chamar próximo.");
+    } finally {
+      setProcessando(false);
+    }
+  }
+
+  async function iniciarFalaChamada() {
+    if (!sessaoAtualId) return;
+    try {
+      setProcessando(true);
+      await api.post(`/sessoes/${sessaoAtualId}/fila-oradores/iniciar-fala`);
+      await carregarOrador(sessaoAtualId);
+      await carregarFilaOradores(sessaoAtualId);
+      setMensagem("Cronômetro da fala iniciado");
+    } catch (error: any) {
+      alert(error?.response?.data?.message || "Erro ao iniciar fala chamada.");
     } finally {
       setProcessando(false);
     }
@@ -546,17 +711,18 @@ export default function PresidentePage() {
   }
 
   return (
-    <main className="flex min-h-screen bg-gradient-to-b from-slate-100 to-slate-200">
+    <main className="admin-page">
       <Sidebar />
 
-      <section className="flex-1 p-8">
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+      <section className="admin-content">
+        <div className="admin-container">
+        <div className="admin-header">
           <div>
-            <h1 className="text-4xl font-black tracking-tight text-slate-900">
-              Painel do Presidente
+            <h1 className="admin-title">
+              Controle da Sessão
             </h1>
-            <p className="mt-1 text-sm text-slate-600">
-              Controle a votação atual, acompanhe quórum e abra a próxima pauta.
+            <p className="admin-subtitle">
+              Central única do operador para etapas, quórum, falas, votação, telão e tablets.
             </p>
           </div>
 
@@ -568,9 +734,17 @@ export default function PresidentePage() {
             >
               {conectado ? "Online" : "Reconectando"}
             </span>
+            <a
+              href="/telao"
+              target="_blank"
+              rel="noreferrer"
+              className="btn btn-primary"
+            >
+              Abrir Telão
+            </a>
             <button
               onClick={carregarPainel}
-              className="rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800"
+              className="btn btn-dark"
             >
               Atualizar
             </button>
@@ -580,7 +754,7 @@ export default function PresidentePage() {
         <p className="mb-4 text-sm text-slate-600">{mensagem}</p>
 
         {loading ? (
-          <div className="rounded-xl border border-slate-200 bg-white p-8 text-center font-semibold text-slate-700 shadow-lg">
+          <div className="card-shell p-8 text-center font-semibold text-slate-700">
             Carregando painel...
           </div>
         ) : (
@@ -666,61 +840,179 @@ export default function PresidentePage() {
               )}
             </section>
 
-            {false && sessaoAtualId && (
-              <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-lg">
-                <p className="text-sm font-bold uppercase tracking-widest text-indigo-600">
-                  Etapa da sessão
-                </p>
-                <h2 className="mt-1 text-2xl font-bold text-slate-900">
-                  Controle de linha do tempo
-                </h2>
-                <div className="mt-4 grid gap-2 md:grid-cols-5">
-                  {(
-                    [
-                      ["ABERTURA", "Abertura"],
-                      ["LEITURA_BIBLICA", "Leitura bíblica"],
-                      ["CHAMADA_VEREADORES", "Chamada dos vereadores"],
-                      ["VERIFICACAO_QUORUM", "Verificação de quórum"],
-                      ["LEITURA_EXPEDIENTE", "Leitura do expediente"],
-                      ["PEQUENAS_COMUNICACOES", "Pequenas comunicações"],
-                      ["GRANDE_EXPEDIENTE", "Grande expediente"],
-                      ["ORDEM_DO_DIA", "Ordem do dia / votação"],
-                      ["RESULTADO", "Resultado"],
-                      ["EXPLICACOES_PESSOAIS", "Explicações pessoais"],
-                      ["ENCERRAMENTO", "Encerramento"],
-                    ] as Array<[EtapaSessao, string]>
-                  ).map(([key, label]) => (
+            {sessaoAtualId && (
+              <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
+                <div className="relative overflow-hidden bg-gradient-to-r from-slate-950 via-blue-950 to-slate-900 p-6 text-white">
+                  <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-cyan-300 via-blue-300 to-emerald-300" />
+                  <div className="flex flex-wrap items-start justify-between gap-5">
+                    <div>
+                      <p className="text-sm font-black uppercase tracking-[0.3em] text-blue-200">
+                        Roteiro da sessão
+                      </p>
+                      <h2 className="mt-2 text-3xl font-black">
+                        {sessaoAtiva?.titulo || votacao?.pautas?.sessoes?.titulo || "Nenhuma sessão ativa"}
+                      </h2>
+                      <p className="mt-2 max-w-3xl text-sm text-slate-300">
+                        {sessaoAtualId
+                          ? "Avance as etapas na ordem regimental. A votação só abre na Ordem do Dia com quórum atingido."
+                          : "Abra ou selecione uma sessão para liberar o controle operacional das etapas."}
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl border border-white/15 bg-white/10 px-5 py-4 text-right shadow-2xl backdrop-blur">
+                      <p className="text-xs font-black uppercase tracking-[0.25em] text-blue-100">
+                        Etapa atual
+                      </p>
+                      <p className="mt-1 text-2xl font-black text-white">
+                        {etapaAtualInfo.label}
+                      </p>
+                      <p className="text-sm text-blue-100">{etapaAtualInfo.hint}</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-6">
+                    <div className="flex items-center justify-between text-xs font-black uppercase tracking-[0.25em] text-blue-100">
+                      <span>Progresso</span>
+                      <span>{progressoEtapa}%</span>
+                    </div>
+                    <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/10">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-cyan-300 via-blue-400 to-emerald-300 transition-all duration-700"
+                        style={{ width: `${progressoEtapa}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div className="grid gap-3 p-5 md:grid-cols-4 xl:grid-cols-6">
+                  {etapasSessao.map(({ key, label, hint }, index) => {
+                    const atual = etapaSessao === key;
+                    const concluida = index < etapaAtualIndex;
+                    return (
                     <button
                       key={key}
-                      disabled={
-                        processando || !tiposFalaPermitidos.includes(oradorTipoFala)
-                      }
-                      onClick={() => atualizarEtapaSessao(sessaoAtualId, key)}
-                      className={`rounded-lg border px-4 py-3 text-sm font-bold ${
-                        etapaSessao === key
-                          ? "border-indigo-700 bg-indigo-700 text-white"
-                          : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
+                      disabled={processando || !sessaoAtualId}
+                      onClick={() => sessaoAtualId && atualizarEtapaSessao(sessaoAtualId, key, true)}
+                      className={`group min-h-28 rounded-xl border px-4 py-3 text-left transition ${
+                        atual
+                          ? "border-blue-600 bg-blue-600 text-white shadow-lg shadow-blue-200 ring-4 ring-blue-100"
+                          : concluida
+                            ? "border-emerald-200 bg-emerald-50 text-emerald-950 hover:-translate-y-0.5 hover:border-emerald-300"
+                            : "border-slate-200 bg-slate-50 text-slate-700 hover:-translate-y-0.5 hover:border-blue-300 hover:bg-white"
                       }`}
                     >
-                      {label}
+                      <span
+                        className={`inline-flex h-8 w-8 items-center justify-center rounded-full text-xs font-black ${
+                          atual
+                            ? "bg-white text-blue-700"
+                            : concluida
+                              ? "bg-emerald-600 text-white"
+                              : "bg-slate-200 text-slate-700 group-hover:bg-blue-100 group-hover:text-blue-700"
+                        }`}
+                      >
+                        {concluida ? "✓" : index + 1}
+                      </span>
+                      <span className="mt-3 block text-sm font-black uppercase tracking-wide">
+                        {label}
+                      </span>
+                      <span className={`mt-1 block text-xs ${atual ? "text-blue-100" : concluida ? "text-emerald-700" : "text-slate-500"}`}>
+                        {hint}
+                      </span>
                     </button>
-                  ))}
+                    );
+                  })}
                 </div>
               </section>
             )}
 
             {sessaoAtualId && (
-              <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-lg">
-                <p className="text-sm font-bold uppercase tracking-widest text-purple-600">
-                  Ordem de fala
-                </p>
-                <h2 className="mt-1 text-2xl font-bold text-slate-900">
-                  Pequenas comunicações, grande expediente, ordem do dia e explicações pessoais
-                </h2>
+              <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xl">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-black uppercase tracking-[0.25em] text-blue-700">
+                      Texto exibido no telão
+                    </p>
+                    <h2 className="mt-1 text-2xl font-black text-slate-950">
+                      Conteúdo da etapa atual
+                    </h2>
+                    <p className="admin-subtitle">
+                      Use este espaço para personalizar o título e a mensagem que aparecem no telão durante a etapa selecionada.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={aplicarModeloTextoEtapa}
+                    className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-black text-blue-700 transition hover:bg-blue-100"
+                  >
+                    Aplicar modelo
+                  </button>
+                </div>
 
-                <p className="mt-1 text-sm text-slate-600">
-                  Etapa atual: <b>{etapaSessao}</b>
-                </p>
+                <div className="mt-5 grid gap-4">
+                  <label className="grid gap-2">
+                    <span className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">
+                      Título no telão
+                    </span>
+                    <input
+                      value={etapaTitulo}
+                      onChange={(event) => setEtapaTitulo(event.target.value)}
+                      placeholder="Ex.: Abertura da sessão"
+                      className="rounded-xl border border-slate-300 px-4 py-3 text-lg font-bold text-slate-950 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                    />
+                  </label>
+
+                  <label className="grid gap-2">
+                    <span className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">
+                      Mensagem no telão
+                    </span>
+                    <textarea
+                      value={etapaDescricao}
+                      onChange={(event) => setEtapaDescricao(event.target.value)}
+                      placeholder="Ex.: Declaro aberta a 1ª Sessão Ordinária de Teste da Câmara Municipal de Macapá."
+                      className="min-h-28 rounded-xl border border-slate-300 px-4 py-3 text-base text-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                    />
+                  </label>
+
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button
+                      type="button"
+                      disabled={processando}
+                      onClick={salvarTextoTelao}
+                      className="rounded-xl bg-blue-700 px-5 py-3 font-black text-white shadow-lg shadow-blue-100 transition hover:-translate-y-0.5 hover:bg-blue-800 disabled:opacity-60"
+                    >
+                      Salvar no telão
+                    </button>
+                    <p className="text-sm font-semibold text-slate-500">
+                      Etapa atual: {etapaAtualInfo.label}
+                    </p>
+                  </div>
+                </div>
+                </section>
+            )}
+
+            {sessaoAtualId && (
+              <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xl">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-black uppercase tracking-[0.25em] text-purple-600">
+                      Ordem de fala
+                    </p>
+                    <h2 className="mt-1 text-2xl font-black text-slate-950">
+                      Controle de pronunciamentos
+                    </h2>
+                    <p className="admin-subtitle">
+                      Selecione o vereador e clique em Adicionar à fila. Depois chame o próximo e inicie o cronômetro quando a fala começar.
+                    </p>
+                  </div>
+                  <span
+                    className={`rounded-full px-4 py-2 text-sm font-black ${
+                      tiposFalaPermitidos.length > 0
+                        ? "bg-purple-100 text-purple-800"
+                        : "bg-slate-100 text-slate-500"
+                    }`}
+                  >
+                    {tiposFalaPermitidos.length > 0 ? "Fala liberada" : "Fala bloqueada"}
+                  </span>
+                </div>
                 <div className="mt-4 grid gap-3 md:grid-cols-4">
                   <select
                     value={oradorVereadorId}
@@ -744,10 +1036,10 @@ export default function PresidentePage() {
                     }}
                     className="rounded-lg border border-slate-300 px-3 py-3"
                   >
-                    <option value="PEQUENAS_COMUNICACOES" disabled={!tiposFalaPermitidos.includes("PEQUENAS_COMUNICACOES")}>Pequenas comunicações</option>
-                    <option value="GRANDE_EXPEDIENTE" disabled={!tiposFalaPermitidos.includes("GRANDE_EXPEDIENTE")}>Grande expediente</option>
-                    <option value="ORDEM_DO_DIA" disabled={!tiposFalaPermitidos.includes("ORDEM_DO_DIA")}>Ordem do dia / votação</option>
-                    <option value="EXPLICACOES_PESSOAIS" disabled={!tiposFalaPermitidos.includes("EXPLICACOES_PESSOAIS")}>Explicações pessoais</option>
+                    <option value="PEQUENAS_COMUNICACOES">Pequenas comunicações</option>
+                    <option value="GRANDE_EXPEDIENTE">Grande expediente</option>
+                    <option value="ORDEM_DO_DIA">Ordem do dia / votação</option>
+                    <option value="EXPLICACOES_PESSOAIS">Explicações pessoais</option>
                   </select>
 
                   <input
@@ -762,11 +1054,18 @@ export default function PresidentePage() {
 
                   <div className="flex gap-2">
                     <button
+                      onClick={adicionarOradorNaFila}
+                      disabled={processando || !oradorVereadorId}
+                      className="flex-1 rounded-lg bg-blue-700 px-4 py-3 font-bold text-white hover:bg-blue-800 disabled:opacity-60"
+                    >
+                      Adicionar à fila
+                    </button>
+                    <button
                       onClick={iniciarFalaOrador}
-                      disabled={processando}
+                      disabled={processando || tiposFalaPermitidos.length === 0}
                       className="flex-1 rounded-lg bg-purple-700 px-4 py-3 font-bold text-white hover:bg-purple-800 disabled:opacity-60"
                     >
-                      Iniciar fala
+                      Iniciar fala direta
                     </button>
                     <button
                       onClick={limparFalaOrador}
@@ -785,28 +1084,48 @@ export default function PresidentePage() {
                     <b>{oradorAtual.orador.cadeira || "-"}</b>
                   </div>
                 )}
-              </section>
+                </section>
             )}
 
             {sessaoAtualId && (
-              <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-lg">
-                <p className="text-sm font-bold uppercase tracking-widest text-violet-600">
-                  Fila de oradores
-                </p>
-                <div className="mt-3 flex gap-2">
+              <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xl">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-black uppercase tracking-[0.25em] text-violet-600">
+                      Fila de oradores
+                    </p>
+                    <h2 className="mt-1 text-2xl font-black text-slate-950">
+                      Chamada e cronômetro
+                    </h2>
+                    <p className="admin-subtitle">
+                      Primeiro chame o vereador, depois inicie o cronômetro quando a fala começar.
+                    </p>
+                  </div>
+                  <div className="rounded-full bg-slate-100 px-4 py-2 text-sm font-black text-slate-700">
+                    {filaOradores.length} na fila
+                  </div>
+                </div>
+                <div className="mt-4 flex flex-wrap gap-2">
                   <button
                     onClick={chamarProximoDaFila}
                     disabled={processando}
-                    className="rounded-lg bg-violet-700 px-4 py-2 font-bold text-white hover:bg-violet-800 disabled:opacity-60"
+                    className="rounded-xl bg-violet-700 px-4 py-3 font-bold text-white shadow-lg shadow-violet-100 transition hover:-translate-y-0.5 hover:bg-violet-800 disabled:opacity-60"
                   >
                     Chamar próximo
                   </button>
                   <button
                     onClick={encerrarFalaDaFila}
                     disabled={processando}
-                    className="rounded-lg bg-slate-700 px-4 py-2 font-bold text-white hover:bg-slate-800 disabled:opacity-60"
+                    className="rounded-xl bg-slate-700 px-4 py-3 font-bold text-white transition hover:-translate-y-0.5 hover:bg-slate-800 disabled:opacity-60"
                   >
                     Encerrar fala atual
+                  </button>
+                  <button
+                    onClick={iniciarFalaChamada}
+                    disabled={processando}
+                    className="rounded-xl bg-blue-700 px-4 py-3 font-bold text-white shadow-lg shadow-blue-100 transition hover:-translate-y-0.5 hover:bg-blue-800 disabled:opacity-60"
+                  >
+                    Iniciar cronômetro
                   </button>
                 </div>
                 <div className="mt-4 grid gap-2">
@@ -824,7 +1143,7 @@ export default function PresidentePage() {
                     ))
                   )}
                 </div>
-              </section>
+                </section>
             )}
 
             <section className="grid gap-4 md:grid-cols-4">
@@ -844,7 +1163,7 @@ export default function PresidentePage() {
                 <p className="font-bold">TOTAL</p>
                 <p className="mt-2 text-5xl font-black">{totais.total}</p>
               </div>
-            </section>
+              </section>
 
             {resultado && (
               <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-lg">
@@ -859,7 +1178,7 @@ export default function PresidentePage() {
                   Abstenção: {resultado.totais.abstencao} | Total:{" "}
                   {resultado.totais.total}
                 </p>
-              </section>
+                </section>
             )}
 
             <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-lg">
@@ -889,14 +1208,19 @@ export default function PresidentePage() {
                         <p className="font-bold text-slate-900">
                           {pauta.numero_ordem} - {pauta.titulo}
                         </p>
-                        <p className="mt-1 text-sm text-slate-600">
+                        <p className="admin-subtitle">
                           {pauta.sessoes?.titulo || "Sem sessão"} |{" "}
                           {textoTipoMaioria(pauta.tipo_maioria)}
                         </p>
                       </div>
 
                       <button
-                        disabled={processando || !!votacao}
+                        disabled={
+                          processando ||
+                          !!votacao ||
+                          etapaSessao !== "ORDEM_DO_DIA" ||
+                          !quorum?.quorum_atingido
+                        }
                         onClick={() => abrirVotacao(pauta.id)}
                         className="rounded-lg bg-green-600 px-4 py-2 font-bold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-slate-300"
                       >
@@ -909,7 +1233,11 @@ export default function PresidentePage() {
             </section>
           </div>
         )}
+        </div>
       </section>
     </main>
   );
 }
+
+
+

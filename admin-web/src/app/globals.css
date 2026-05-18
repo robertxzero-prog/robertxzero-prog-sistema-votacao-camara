@@ -24,3 +24,297 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+@keyframes panel-in-left {
+  from {
+    opacity: 0;
+    transform: translate3d(-28px, 18px, 0) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes panel-in-right {
+  from {
+    opacity: 0;
+    transform: translate3d(28px, 18px, 0) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes reveal-up {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 18px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes logo-reveal {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, -18px, 0) scale(0.94);
+    filter: blur(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes support-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 18px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes support-popover-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes splash-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 22px, 0) scale(0.96);
+    filter: blur(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes status-sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(220%);
+  }
+}
+
+.login-panel {
+  transform-origin: center;
+  will-change: opacity, transform;
+}
+
+.login-panel-left {
+  animation: panel-in-left 760ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.login-panel-right {
+  animation: panel-in-right 760ms cubic-bezier(0.22, 1, 0.36, 1) 120ms both;
+}
+
+.logo-reveal {
+  animation: logo-reveal 900ms cubic-bezier(0.22, 1, 0.36, 1) 180ms both;
+}
+
+.content-reveal {
+  animation: reveal-up 720ms cubic-bezier(0.22, 1, 0.36, 1) 340ms both;
+}
+
+.metrics-reveal {
+  animation: reveal-up 720ms cubic-bezier(0.22, 1, 0.36, 1) 480ms both;
+}
+
+.form-reveal {
+  animation: reveal-up 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.support-card {
+  animation: support-in 620ms cubic-bezier(0.22, 1, 0.36, 1) 620ms both;
+}
+
+.support-popover {
+  animation: support-popover-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.status-loader {
+  animation: status-sweep 1.2s ease-in-out infinite;
+}
+
+.splash-card {
+  animation: splash-in 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.login-input {
+  min-height: 54px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-panel-left,
+  .login-panel-right,
+  .logo-reveal,
+  .content-reveal,
+  .metrics-reveal,
+  .form-reveal,
+  .support-card,
+  .support-popover,
+  .splash-card,
+  .status-loader {
+    animation: none;
+  }
+}
+
+.admin-page {
+  @apply flex min-h-screen bg-slate-100;
+}
+
+.admin-content {
+  @apply min-w-0 flex-1 p-6 md:p-8;
+}
+
+.admin-container {
+  @apply mx-auto w-full min-w-0 max-w-7xl;
+}
+
+.admin-header {
+  @apply mb-6 flex flex-wrap items-center justify-between gap-4;
+}
+
+.admin-title {
+  @apply text-4xl font-black tracking-tight text-slate-900;
+}
+
+.admin-subtitle {
+  @apply mt-2 text-lg text-slate-700;
+}
+
+.card-shell {
+  @apply rounded-2xl border border-slate-200 bg-white shadow;
+}
+
+.table-shell {
+  @apply w-full overflow-x-auto overflow-y-hidden rounded-2xl border border-slate-200 bg-white shadow;
+}
+
+.table-head {
+  @apply bg-slate-200/80 text-slate-700;
+}
+
+.table-th {
+  @apply px-5 py-4 text-left text-sm font-black uppercase tracking-[0.08em];
+}
+
+.table-td {
+  @apply px-5 py-4 text-slate-700 align-top;
+}
+
+.table-row {
+  @apply border-t border-slate-200 hover:bg-slate-50/70;
+}
+
+.btn {
+  @apply inline-flex items-center justify-center rounded-xl px-5 py-3 text-sm font-bold transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed;
+}
+
+.btn-primary {
+  @apply bg-blue-600 text-white hover:-translate-y-0.5 hover:bg-blue-700 focus-visible:ring-blue-400 shadow-sm shadow-blue-200;
+}
+
+.btn-dark {
+  @apply bg-slate-900 text-white hover:-translate-y-0.5 hover:bg-slate-800 focus-visible:ring-slate-500;
+}
+
+.btn-success {
+  @apply bg-emerald-600 text-white hover:-translate-y-0.5 hover:bg-emerald-700 focus-visible:ring-emerald-400;
+}
+
+.btn-danger {
+  @apply bg-rose-600 text-white hover:-translate-y-0.5 hover:bg-rose-700 focus-visible:ring-rose-400;
+}
+
+.btn-muted {
+  @apply border border-slate-300 bg-white text-slate-700 hover:-translate-y-0.5 hover:bg-slate-50 focus-visible:ring-slate-300;
+}
+
+.action-link {
+  @apply text-sm font-bold text-blue-700 hover:text-blue-800 hover:underline;
+}
+
+.action-link-danger {
+  @apply text-sm font-bold text-rose-700 hover:text-rose-800 hover:underline;
+}
+
+.pill {
+  @apply inline-flex rounded-full px-3 py-1 text-sm font-semibold;
+}
+
+.pill-green {
+  @apply bg-emerald-100 text-emerald-800;
+}
+
+.pill-red {
+  @apply bg-rose-100 text-rose-700;
+}
+
+.pill-slate {
+  @apply bg-slate-100 text-slate-700;
+}
+
+/* Fallback explícito para garantir layout mesmo sem @apply em runtime */
+.admin-page {
+  display: flex;
+  min-height: 100vh;
+  background: #f1f5f9;
+}
+
+.admin-content {
+  flex: 1 1 0%;
+  min-width: 0;
+  padding: 2rem;
+}
+
+.admin-container {
+  width: 100%;
+  min-width: 0;
+  max-width: 80rem;
+  margin: 0 auto;
+}
+
+.admin-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.admin-title {
+  margin: 0;
+  font-size: 3rem;
+  line-height: 1.05;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  color: #0f172a;
+}
+
+.admin-subtitle {
+  margin-top: 0.5rem;
+  font-size: 1.125rem;
+  color: #334155;
+}

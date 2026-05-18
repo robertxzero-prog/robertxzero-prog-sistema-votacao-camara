@@ -11,6 +11,7 @@ type Usuario = {
   foto_url: string | null;
   ativo: boolean;
   partido?: string;
+  partido_logo_url?: string | null;
   cadeiraNumero?: number | null;
   cargo_mesa?: 'PRESIDENTE' | 'VICE_PRESIDENTE' | 'SECRETARIO_GERAL' | null;
 };

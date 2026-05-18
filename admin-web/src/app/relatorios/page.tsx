@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 
@@ -88,16 +88,17 @@ export default function RelatoriosPage() {
   );
 
   return (
-    <main className="flex min-h-screen bg-slate-100">
+    <main className="admin-page">
       <Sidebar />
 
-      <section className="flex-1 p-8">
-        <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
+      <section className="admin-content">
+        <div className="admin-container">
+        <div className="admin-header">
           <div>
             <p className="text-sm font-bold uppercase tracking-widest text-blue-600">
               Sistema legislativo
             </p>
-            <h1 className="mt-2 text-5xl font-black text-slate-900">
+            <h1 className="admin-title">
               Relatórios
             </h1>
           </div>
@@ -105,19 +106,19 @@ export default function RelatoriosPage() {
           <div className="flex flex-wrap gap-3">
             <button
               onClick={() => abrirPdf("/relatorios/sessoes/pdf")}
-              className="rounded-2xl bg-slate-800 px-5 py-4 text-sm font-bold text-white hover:bg-slate-900"
+              className="btn btn-dark"
             >
               PDF Sessoes
             </button>
             <button
               onClick={() => abrirPdf("/relatorios/vereadores/pdf")}
-              className="rounded-2xl bg-slate-800 px-5 py-4 text-sm font-bold text-white hover:bg-slate-900"
+              className="btn btn-dark"
             >
               PDF Vereadores
             </button>
             <button
               onClick={carregarRelatorios}
-              className="rounded-2xl bg-blue-600 px-6 py-4 text-lg font-bold text-white hover:bg-blue-700"
+              className="btn btn-primary"
             >
               Atualizar
             </button>
@@ -125,7 +126,7 @@ export default function RelatoriosPage() {
         </div>
 
         {loading ? (
-          <div className="rounded-xl bg-white p-8 text-center font-semibold text-slate-700 shadow">
+          <div className="card-shell p-8 text-center font-semibold text-slate-700">
             Carregando relatórios...
           </div>
         ) : (
@@ -137,7 +138,7 @@ export default function RelatoriosPage() {
               <Indicador titulo="Presenças" valor={totalPresencas} />
             </section>
 
-            <section className="rounded-xl bg-white p-6 shadow">
+            <section className="card-shell p-6">
               <h2 className="text-2xl font-black text-slate-900">
                 Sessões e votações
               </h2>
@@ -149,24 +150,24 @@ export default function RelatoriosPage() {
               ) : (
                 <div className="mt-5 overflow-hidden rounded-xl border border-slate-200">
                   <table className="w-full border-collapse">
-                    <thead className="bg-slate-900 text-white">
+                    <thead className="table-head">
                       <tr>
-                        <th className="px-4 py-3 text-left text-sm font-bold">
+                        <th className="table-th">
                           Sessão
                         </th>
-                        <th className="px-4 py-3 text-left text-sm font-bold">
+                        <th className="table-th">
                           Data
                         </th>
-                        <th className="px-4 py-3 text-left text-sm font-bold">
+                        <th className="table-th">
                           Pautas
                         </th>
-                        <th className="px-4 py-3 text-left text-sm font-bold">
+                        <th className="table-th">
                           Votações
                         </th>
-                        <th className="px-4 py-3 text-left text-sm font-bold">
+                        <th className="table-th">
                           Presenças
                         </th>
-                        <th className="px-4 py-3 text-left text-sm font-bold">
+                        <th className="table-th">
                           Votos
                         </th>
                       </tr>
@@ -174,22 +175,22 @@ export default function RelatoriosPage() {
                     <tbody>
                       {sessoes.map((sessao) => (
                         <tr key={sessao.id} className="border-b last:border-0">
-                          <td className="px-4 py-3 font-bold text-slate-900">
+                          <td className="table-td font-semibold text-slate-900">
                             {sessao.titulo}
                           </td>
-                          <td className="px-4 py-3 text-slate-700">
+                          <td className="table-td">
                             {formatarData(sessao.data_sessao)}
                           </td>
-                          <td className="px-4 py-3 text-slate-700">
+                          <td className="table-td">
                             {sessao.total_pautas}
                           </td>
-                          <td className="px-4 py-3 text-slate-700">
+                          <td className="table-td">
                             {sessao.votacoes_encerradas}/{sessao.total_votacoes}
                           </td>
-                          <td className="px-4 py-3 text-slate-700">
+                          <td className="table-td">
                             {sessao.presencas}
                           </td>
-                          <td className="px-4 py-3 text-slate-700">
+                          <td className="table-td">
                             {sessao.totais_votos.total}
                           </td>
                         </tr>
@@ -200,7 +201,7 @@ export default function RelatoriosPage() {
               )}
             </section>
 
-            <section className="rounded-xl bg-white p-6 shadow">
+            <section className="card-shell p-6">
               <h2 className="text-2xl font-black text-slate-900">Vereadores</h2>
 
               <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -242,6 +243,7 @@ export default function RelatoriosPage() {
             </section>
           </div>
         )}
+        </div>
       </section>
     </main>
   );
@@ -249,9 +251,9 @@ export default function RelatoriosPage() {
 
 function Indicador({ titulo, valor }: { titulo: string; valor: number }) {
   return (
-    <div className="rounded-xl bg-white p-6 shadow">
+    <div className="card-shell p-6">
       <p className="text-sm font-bold uppercase text-slate-500">{titulo}</p>
-      <p className="mt-2 text-5xl font-black text-slate-900">{valor}</p>
+      <p className="admin-title">{valor}</p>
     </div>
   );
 }
@@ -264,3 +266,5 @@ function MiniIndicador({ titulo, valor }: { titulo: string; valor: number }) {
     </div>
   );
 }
+
+

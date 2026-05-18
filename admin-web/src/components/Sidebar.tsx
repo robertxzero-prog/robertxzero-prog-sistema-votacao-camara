@@ -1,9 +1,20 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { api } from "@/services/api";
+
+type MenuItem = {
+  href: string;
+  label: string;
+  destaque?: boolean;
+};
+
+type MenuGroup = {
+  titulo: string;
+  itens: MenuItem[];
+};
 
 export function Sidebar() {
   const router = useRouter();
@@ -35,60 +46,102 @@ export function Sidebar() {
     router.push("/");
   }
 
-  const itens = [
-    { href: "/dashboard", label: "Dashboard" },
-    { href: "/vereadores", label: "Vereadores" },
-    { href: "/sessoes", label: "Sessões" },
-    { href: "/pautas", label: "Pautas" },
-    { href: "/atas", label: "Atas" },
-    { href: "/relatorios", label: "Relatórios" },
-    { href: "/configuracoes", label: "Configurações" },
+  const grupos: MenuGroup[] = [
+    {
+      titulo: "Operação",
+      itens: [
+        { href: "/controle-da-sessao", label: "Controle da Sessão", destaque: true },
+      ],
+    },
+    {
+      titulo: "Preparação",
+      itens: [
+        { href: "/sessoes", label: "Sessões" },
+        { href: "/pautas", label: "Pautas" },
+        { href: "/vereadores", label: "Vereadores" },
+      ],
+    },
+    {
+      titulo: "Documentos",
+      itens: [
+        { href: "/atas", label: "Atas" },
+        { href: "/relatorios", label: "Relatórios" },
+      ],
+    },
+    {
+      titulo: "Sistema",
+      itens: [{ href: "/configuracoes", label: "Configurações" }],
+    },
   ];
 
   return (
-    <aside className="flex min-h-screen w-72 flex-col border-r border-blue-900/80 bg-blue-950 p-6 text-white">
+    <aside className="flex min-h-screen w-72 min-w-72 shrink-0 flex-col border-r border-blue-950 bg-[radial-gradient(circle_at_top_left,#0f2d62_0,#07172f_34%,#020617_82%)] p-5 text-white shadow-2xl">
       <div>
-        <div className="mb-4 flex flex-col items-start">
+        <div className="mb-5 flex items-center gap-3">
           {brasaoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={brasaoUrl}
               alt="Brasão da câmara"
-              className="h-[70px] w-[70px] object-contain"
+              className="h-14 w-14 object-contain"
             />
           ) : (
-            <div className="flex h-[70px] w-[70px] items-center justify-center bg-white/10 text-xl font-bold">
+            <div className="flex h-14 w-14 items-center justify-center rounded-lg border border-white/10 bg-white/10 text-lg font-black">
               CM
             </div>
           )}
-          <h1 className="mt-2 text-2xl font-black">Sistema Câmara</h1>
+          <div>
+            <h1 className="text-xl font-black">SILCAM</h1>
+            <p className="whitespace-nowrap text-[11px] font-semibold uppercase tracking-[0.12em] text-blue-200">
+              Painel de Controle
+            </p>
+          </div>
         </div>
 
-        <p className="text-xs uppercase tracking-[0.14em] text-blue-200">Painel Municipal</p>
-        <p className="mb-8 mt-1 text-sm font-semibold text-blue-100">{nomeCamara}</p>
+        <div className="mb-6 rounded-xl border border-blue-300/20 bg-blue-950/45 p-3 shadow-inner shadow-black/20">
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-cyan-200">
+            Câmara
+          </p>
+          <p className="mt-1 text-sm font-semibold leading-snug text-white">
+            {nomeCamara}
+          </p>
+        </div>
 
-        <nav className="flex flex-col gap-2">
-          {itens.map((item) => {
-            const ativo = pathname === item.href;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`rounded-lg p-3 font-medium transition ${
-                  ativo ? "bg-white text-blue-950" : "text-blue-100 hover:bg-blue-900"
-                }`}
-              >
-                {item.label}
-              </Link>
-            );
-          })}
+        <nav className="space-y-5">
+          {grupos.map((grupo) => (
+            <div key={grupo.titulo}>
+              <p className="mb-2 px-2 text-[11px] font-black uppercase tracking-[0.24em] text-blue-300/80">
+                {grupo.titulo}
+              </p>
+              <div className="space-y-1.5">
+                {grupo.itens.map((item) => {
+                  const ativo = pathname === item.href;
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={`flex items-center rounded-xl px-4 py-3 font-semibold transition ${
+                        ativo
+                          ? "bg-white text-slate-950 shadow-xl shadow-black/25"
+                          : item.destaque
+                            ? "bg-blue-500/25 text-white shadow-inner shadow-blue-950/40 hover:bg-blue-500/35"
+                            : "text-slate-100/90 hover:bg-white/10 hover:text-white"
+                      }`}
+                    >
+                      <span className="whitespace-nowrap">{item.label}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </nav>
       </div>
 
-      <div className="mt-auto border-t border-blue-900 pt-6">
+      <div className="mt-auto border-t border-blue-300/10 pt-5">
         <button
           onClick={deslogar}
-          className="w-full rounded-lg bg-white/10 px-4 py-3 text-left font-semibold transition hover:bg-white/20"
+          className="w-full rounded-xl bg-white/10 px-4 py-3 text-left font-semibold text-slate-100 transition hover:bg-white/20"
         >
           Deslogar
         </button>
@@ -96,3 +149,4 @@ export function Sidebar() {
     </aside>
   );
 }
+

@@ -222,7 +222,7 @@ export default function TelaoPage() {
       await carregarFilaOradores(sessaoId);
     } catch (error) {
       console.error(error);
-      alert("Erro ao carregar votaÃ§Ã£o ativa.");
+      alert("Erro ao carregar votação ativa.");
     } finally {
       setLoading(false);
     }
@@ -263,7 +263,7 @@ export default function TelaoPage() {
       if (data) {
         setResultadoFinal(null);
         setVotacao(data);
-        setMensagem("VotaÃ§Ã£o atualizada");
+        setMensagem("Votação atualizada");
         await carregarQuorum(data.pautas?.sessao_id);
         await carregarEtapa(data.pautas?.sessao_id);
         await carregarOrador(data.pautas?.sessao_id);
@@ -273,7 +273,7 @@ export default function TelaoPage() {
         setQuorum(null);
         setOradorAtual(null);
         setFilaOradores([]);
-        setMensagem("Aguardando votaÃ§Ã£o...");
+        setMensagem("Aguardando votação...");
       }
 
       setLoading(false);
@@ -289,14 +289,14 @@ export default function TelaoPage() {
 
       if (!sessaoId || data.sessao_id === sessaoId) {
         setQuorum(data.quorum);
-        setMensagem("PresenÃ§a atualizada");
+        setMensagem("Presença atualizada");
       }
     });
 
     socket.on("votacao_encerrada", async (data: ResultadoFinal) => {
       setResultadoFinal(data);
       setVotacao(null);
-      setMensagem("VotaÃ§Ã£o encerrada");
+      setMensagem("Votação encerrada");
 
       await carregarQuorum(data.votacao.pautas?.sessao_id);
       await carregarEtapa(data.votacao.pautas?.sessao_id);
@@ -309,7 +309,7 @@ export default function TelaoPage() {
         setEtapaSessao(data.etapa);
         setEtapaTitulo(data.etapa_titulo || "");
         setEtapaDescricao(data.etapa_descricao || "");
-        setMensagem("Etapa da sessÃ£o atualizada");
+        setMensagem("Etapa da sessão atualizada");
       }
     });
 
@@ -364,11 +364,11 @@ export default function TelaoPage() {
 
   function textoVoto(voto: string) {
     if (voto === "NAO") {
-      return "NÃƒO";
+      return "NÃO";
     }
 
     if (voto === "ABSTENCAO") {
-      return "ABSTENÃ‡ÃƒO";
+      return "ABSTENÇÃO";
     }
 
     return voto;
@@ -380,7 +380,7 @@ export default function TelaoPage() {
     }
 
     if (tipo === "DOIS_TERCOS") {
-      return "Dois terÃ§os";
+      return "Dois terços";
     }
 
     return "Maioria simples";
@@ -399,10 +399,10 @@ export default function TelaoPage() {
   }
 
   function textoTipoFala(tipo?: TipoFalaSessao | null) {
-    if (tipo === "PEQUENAS_COMUNICACOES") return "Pequenas comunicaÃ§Ãµes";
+    if (tipo === "PEQUENAS_COMUNICACOES") return "Pequenas comunicações";
     if (tipo === "GRANDE_EXPEDIENTE") return "Grande expediente";
-    if (tipo === "ORDEM_DO_DIA") return "Ordem do dia / votaÃ§Ã£o";
-    if (tipo === "EXPLICACOES_PESSOAIS") return "ExplicaÃ§Ãµes pessoais";
+    if (tipo === "ORDEM_DO_DIA") return "Ordem do dia / votação";
+    if (tipo === "EXPLICACOES_PESSOAIS") return "Explicações pessoais";
     return "Sem fala ativa";
   }
 
@@ -462,16 +462,16 @@ export default function TelaoPage() {
   function LinhaDoTempoSessao() {
     const etapaAtual = etapaAtualLinhaTempo();
     const etapas: LinhaTempoEtapa[] = [
-      { key: "abertura", titulo: "Abertura", descricao: "InÃ­cio da sessÃ£o" },
-      { key: "biblica", titulo: "Leitura bÃ­blica", descricao: "Momento de leitura" },
-      { key: "chamada", titulo: "Chamada", descricao: "Registro de presenÃ§a" },
-      { key: "quorum", titulo: "QuÃ³rum", descricao: "VerificaÃ§Ã£o de quÃ³rum" },
+      { key: "abertura", titulo: "Abertura", descricao: "Início da sessão" },
+      { key: "biblica", titulo: "Leitura bíblica", descricao: "Momento de leitura" },
+      { key: "chamada", titulo: "Chamada", descricao: "Registro de presença" },
+      { key: "quorum", titulo: "Quórum", descricao: "Verificação de quórum" },
       { key: "expediente", titulo: "Expediente", descricao: "Leitura do expediente" },
-      { key: "pequenas", titulo: "Pequenas comunicaÃ§Ãµes", descricao: "Falas de atÃ© 5 minutos" },
-      { key: "grande", titulo: "Grande expediente", descricao: "Falas de atÃ© 15 minutos" },
-      { key: "ordem", titulo: "Ordem do dia", descricao: "DiscussÃ£o e votaÃ§Ã£o da matÃ©ria" },
-      { key: "explicacoes", titulo: "ExplicaÃ§Ãµes pessoais", descricao: "Falas de atÃ© 3 minutos" },
-      { key: "encerramento", titulo: "Encerramento", descricao: "FinalizaÃ§Ã£o da sessÃ£o" },
+      { key: "pequenas", titulo: "Pequenas comunicações", descricao: "Falas de até 5 minutos" },
+      { key: "grande", titulo: "Grande expediente", descricao: "Falas de até 15 minutos" },
+      { key: "ordem", titulo: "Ordem do dia", descricao: "Discussão e votação da matéria" },
+      { key: "explicacoes", titulo: "Explicações pessoais", descricao: "Falas de até 3 minutos" },
+      { key: "encerramento", titulo: "Encerramento", descricao: "Finalização da sessão" },
     ];
     const atualIndex = Math.max(0, etapas.findIndex((item) => item.key === etapaAtual));
 
@@ -504,15 +504,15 @@ export default function TelaoPage() {
     if (etapaSessao === "ABERTURA") {
       return bloco(
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 10l9-7 9 7"/><path d="M5 10v10h14V10"/></svg>,
-        titulo || "Abertura da sessÃ£o",
-        descricao || "Os trabalhos legislativos vÃ£o comeÃ§ar.",
+        titulo || "Abertura da sessão",
+        descricao || "Os trabalhos legislativos vão começar.",
       );
     }
     if (etapaSessao === "LEITURA_BIBLICA") {
       return bloco(
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M6 4h10a2 2 0 0 1 2 2v14H8a2 2 0 0 0-2 2"/><path d="M6 4v16"/></svg>,
-        titulo || "Leitura bÃ­blica",
-        descricao || "Momento de leitura da passagem bÃ­blica.",
+        titulo || "Leitura bíblica",
+        descricao || "Momento de leitura da passagem bíblica.",
         "Passagem em leitura"
       );
     }
@@ -520,43 +520,43 @@ export default function TelaoPage() {
       return bloco(
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M6 3h12v18H6z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>,
         titulo || "Leitura do expediente",
-        descricao || "Leitura oficial do expediente da sessÃ£o.",
-        "Leitura realizada pela Mesa Diretora â€¢ SecretÃ¡rio-geral"
+        descricao || "Leitura oficial do expediente da sessão.",
+        "Leitura realizada pela Mesa Diretora • Secretário-geral"
       );
     }
     if (etapaSessao === "PEQUENAS_COMUNICACOES") {
       return bloco(
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 1v22"/><path d="M7 6h7a4 4 0 0 1 0 8H9"/></svg>,
-        titulo || "Pequenas comunicaÃ§Ãµes",
-        descricao || "Uso da palavra em comunicaÃ§Ãµes breves (atÃ© 5 minutos).",
+        titulo || "Pequenas comunicações",
+        descricao || "Uso da palavra em comunicações breves (até 5 minutos).",
       );
     }
     if (etapaSessao === "GRANDE_EXPEDIENTE") {
       return bloco(
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>,
         titulo || "Grande expediente",
-        descricao || "Pronunciamentos dos vereadores (atÃ© 15 minutos).",
+        descricao || "Pronunciamentos dos vereadores (até 15 minutos).",
       );
     }
     if (etapaSessao === "ORDEM_DO_DIA") {
       return bloco(
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 4h16v16H4z"/><path d="M8 8h8M8 12h8M8 16h6"/></svg>,
         titulo || "Ordem do dia",
-        descricao || "DiscussÃ£o e votaÃ§Ã£o da matÃ©ria em pauta.",
+        descricao || "Discussão e votação da matéria em pauta.",
       );
     }
     if (etapaSessao === "EXPLICACOES_PESSOAIS") {
       return bloco(
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="8" r="3"/><path d="M6 21a6 6 0 0 1 12 0"/></svg>,
-        titulo || "ExplicaÃ§Ãµes pessoais",
-        descricao || "Pronunciamentos finais (atÃ© 3 minutos).",
+        titulo || "Explicações pessoais",
+        descricao || "Pronunciamentos finais (até 3 minutos).",
       );
     }
     if (etapaSessao === "ENCERRAMENTO") {
       return bloco(
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 12h16"/><path d="M14 6l6 6-6 6"/></svg>,
         titulo || "Encerramento",
-        descricao || "Encerramento formal da sessÃ£o.",
+        descricao || "Encerramento formal da sessão.",
       );
     }
     return null;
@@ -580,9 +580,9 @@ export default function TelaoPage() {
     if (etapaSessao === "LEITURA_BIBLICA") {
       return (
         <div className="mt-5 rounded-3xl border border-amber-300/40 bg-amber-900/20 p-8">
-          <div className="mb-3 text-6xl">ðŸ“–</div>
-          <p className={`${baseTitulo} text-amber-100`}>{titulo || "Leitura bÃ­blica"}</p>
-          <p className={`${baseDescricao} text-amber-50/90`}>{descricao || "Momento de reflexÃ£o e leitura da passagem bÃ­blica."}</p>
+          <div className="mb-3 text-6xl">📖</div>
+          <p className={`${baseTitulo} text-amber-100`}>{titulo || "Leitura bíblica"}</p>
+          <p className={`${baseDescricao} text-amber-50/90`}>{descricao || "Momento de reflexão e leitura da passagem bíblica."}</p>
           <p className="mt-5 rounded-2xl bg-amber-100/10 p-4 text-xl text-amber-100/95">Passagem em leitura pela mesa diretora</p>
         </div>
       );
@@ -591,24 +591,24 @@ export default function TelaoPage() {
       return (
         <div className="mt-5 rounded-3xl border border-indigo-300/40 bg-indigo-900/20 p-8">
           <p className="text-sm font-bold uppercase tracking-widest text-indigo-300">Chamada nominal</p>
-          <p className={`${baseTitulo} mt-2 text-indigo-100`}>{titulo || "Registro de presenÃ§a dos vereadores"}</p>
-          <p className={`${baseDescricao} text-indigo-50/90`}>{descricao || "A secretaria realiza a chamada nominal para composiÃ§Ã£o de presenÃ§a."}</p>
+          <p className={`${baseTitulo} mt-2 text-indigo-100`}>{titulo || "Registro de presença dos vereadores"}</p>
+          <p className={`${baseDescricao} text-indigo-50/90`}>{descricao || "A secretaria realiza a chamada nominal para composição de presença."}</p>
         </div>
       );
     }
     if (etapaSessao === "VERIFICACAO_QUORUM") {
       return (
         <div className="mt-5 rounded-3xl border border-emerald-300/40 bg-emerald-900/20 p-8">
-          <p className="text-sm font-bold uppercase tracking-widest text-emerald-300">ConferÃªncia regimental</p>
-          <p className={`${baseTitulo} mt-2 text-emerald-100`}>{titulo || "VerificaÃ§Ã£o de quÃ³rum"}</p>
-          <p className={`${baseDescricao} text-emerald-50/90`}>{descricao || "A sessÃ£o verifica o quÃ³rum mÃ­nimo para deliberaÃ§Ã£o das matÃ©rias."}</p>
+          <p className="text-sm font-bold uppercase tracking-widest text-emerald-300">Conferência regimental</p>
+          <p className={`${baseTitulo} mt-2 text-emerald-100`}>{titulo || "Verificação de quórum"}</p>
+          <p className={`${baseDescricao} text-emerald-50/90`}>{descricao || "A sessão verifica o quórum mínimo para deliberação das matérias."}</p>
           <div className="mt-5 grid gap-3 md:grid-cols-2">
             <div className="rounded-xl bg-emerald-100/10 p-4 text-center">
               <p className="text-sm uppercase tracking-widest text-emerald-200">Presentes</p>
               <p className="mt-2 text-5xl font-black text-emerald-100">{quorum?.presentes ?? "-"}</p>
             </div>
             <div className="rounded-xl bg-emerald-100/10 p-4 text-center">
-              <p className="text-sm uppercase tracking-widest text-emerald-200">QuÃ³rum</p>
+              <p className="text-sm uppercase tracking-widest text-emerald-200">Quórum</p>
               <p className="mt-2 text-3xl font-black text-emerald-100">{quorum?.quorum_atingido ? "ATINGIDO" : "AGUARDANDO"}</p>
             </div>
           </div>
@@ -620,17 +620,17 @@ export default function TelaoPage() {
         <div className="mt-5 rounded-3xl border border-slate-300/35 bg-slate-800/80 p-8">
           <p className="text-sm font-bold uppercase tracking-widest text-slate-300">Leitura do expediente</p>
           <p className={`${baseTitulo} mt-2 text-white`}>{titulo || "Expediente em leitura"}</p>
-          <p className={`${baseDescricao} text-slate-200`}>{descricao || "Leitura das matÃ©rias pela mesa diretora."}</p>
-          <p className="mt-5 text-lg font-semibold text-slate-300">ResponsÃ¡vel: SecretÃ¡rio-geral</p>
+          <p className={`${baseDescricao} text-slate-200`}>{descricao || "Leitura das matérias pela mesa diretora."}</p>
+          <p className="mt-5 text-lg font-semibold text-slate-300">Responsável: Secretário-geral</p>
         </div>
       );
     }
     if (etapaSessao === "PEQUENAS_COMUNICACOES") {
       return (
         <div className="mt-5 rounded-3xl border border-blue-300/40 bg-blue-900/20 p-8">
-          <p className="text-sm font-bold uppercase tracking-widest text-blue-300">Pequenas comunicaÃ§Ãµes</p>
-          <p className={`${baseTitulo} mt-2 text-blue-100`}>{titulo || "ComunicaÃ§Ãµes breves dos vereadores"}</p>
-          <p className={`${baseDescricao} text-blue-50/90`}>{descricao || "Uso da palavra para comunicaÃ§Ãµes objetivas (atÃ© 5 minutos)."}</p>
+          <p className="text-sm font-bold uppercase tracking-widest text-blue-300">Pequenas comunicações</p>
+          <p className={`${baseTitulo} mt-2 text-blue-100`}>{titulo || "Comunicações breves dos vereadores"}</p>
+          <p className={`${baseDescricao} text-blue-50/90`}>{descricao || "Uso da palavra para comunicações objetivas (até 5 minutos)."}</p>
         </div>
       );
     }
@@ -639,7 +639,7 @@ export default function TelaoPage() {
         <div className="mt-5 rounded-3xl border border-violet-300/40 bg-violet-900/20 p-8">
           <p className="text-sm font-bold uppercase tracking-widest text-violet-300">Grande expediente</p>
           <p className={`${baseTitulo} mt-2 text-violet-100`}>{titulo || "Pronunciamento parlamentar"}</p>
-          <p className={`${baseDescricao} text-violet-50/90`}>{descricao || "Uso da palavra com tempo ampliado (atÃ© 15 minutos)."}</p>
+          <p className={`${baseDescricao} text-violet-50/90`}>{descricao || "Uso da palavra com tempo ampliado (até 15 minutos)."}</p>
         </div>
       );
     }
@@ -647,8 +647,8 @@ export default function TelaoPage() {
       return (
         <div className="mt-5 rounded-3xl border border-rose-300/40 bg-rose-900/20 p-8">
           <p className="text-sm font-bold uppercase tracking-widest text-rose-300">Ordem do dia</p>
-          <p className={`${baseTitulo} mt-2 text-rose-100`}>{titulo || "DiscussÃ£o e votaÃ§Ã£o da matÃ©ria"}</p>
-          <p className={`${baseDescricao} text-rose-50/90`}>{descricao || "Fase de discussÃ£o e votaÃ§Ã£o das matÃ©rias pautadas."}</p>
+          <p className={`${baseTitulo} mt-2 text-rose-100`}>{titulo || "Discussão e votação da matéria"}</p>
+          <p className={`${baseDescricao} text-rose-50/90`}>{descricao || "Fase de discussão e votação das matérias pautadas."}</p>
         </div>
       );
     }
@@ -656,17 +656,17 @@ export default function TelaoPage() {
       return (
         <div className="mt-5 rounded-3xl border border-lime-300/40 bg-lime-900/20 p-8">
           <p className="text-sm font-bold uppercase tracking-widest text-lime-300">Resultado</p>
-          <p className={`${baseTitulo} mt-2 text-lime-100`}>{titulo || "ProclamaÃ§Ã£o do resultado"}</p>
-          <p className={`${baseDescricao} text-lime-50/90`}>{descricao || "A presidÃªncia proclama oficialmente o resultado da votaÃ§Ã£o."}</p>
+          <p className={`${baseTitulo} mt-2 text-lime-100`}>{titulo || "Proclamação do resultado"}</p>
+          <p className={`${baseDescricao} text-lime-50/90`}>{descricao || "A presidência proclama oficialmente o resultado da votação."}</p>
         </div>
       );
     }
     if (etapaSessao === "EXPLICACOES_PESSOAIS") {
       return (
         <div className="mt-5 rounded-3xl border border-fuchsia-300/40 bg-fuchsia-900/20 p-8">
-          <p className="text-sm font-bold uppercase tracking-widest text-fuchsia-300">ExplicaÃ§Ãµes pessoais</p>
+          <p className="text-sm font-bold uppercase tracking-widest text-fuchsia-300">Explicações pessoais</p>
           <p className={`${baseTitulo} mt-2 text-fuchsia-100`}>{titulo || "Pronunciamentos finais"}</p>
-          <p className={`${baseDescricao} text-fuchsia-50/90`}>{descricao || "Falas finais dos vereadores (atÃ© 3 minutos)."}</p>
+          <p className={`${baseDescricao} text-fuchsia-50/90`}>{descricao || "Falas finais dos vereadores (até 3 minutos)."}</p>
         </div>
       );
     }
@@ -674,15 +674,15 @@ export default function TelaoPage() {
       return (
         <div className="mt-5 rounded-3xl border border-orange-300/40 bg-orange-900/20 p-8">
           <p className="text-sm font-bold uppercase tracking-widest text-orange-300">Encerramento</p>
-          <p className={`${baseTitulo} mt-2 text-orange-100`}>{titulo || "Encerramento da sessÃ£o"}</p>
-          <p className={`${baseDescricao} text-orange-50/90`}>{descricao || "A presidÃªncia encerra oficialmente os trabalhos da sessÃ£o."}</p>
+          <p className={`${baseTitulo} mt-2 text-orange-100`}>{titulo || "Encerramento da sessão"}</p>
+          <p className={`${baseDescricao} text-orange-50/90`}>{descricao || "A presidência encerra oficialmente os trabalhos da sessão."}</p>
         </div>
       );
     }
     return (
       <div className="mt-5 rounded-3xl border border-slate-700 bg-slate-800/80 p-8">
-        <p className={`${baseTitulo} text-white`}>{titulo || "Etapa da sessÃ£o"}</p>
-        <p className={`${baseDescricao} text-slate-200`}>{descricao || "Aguardando atualizaÃ§Ã£o da etapa."}</p>
+        <p className={`${baseTitulo} text-white`}>{titulo || "Etapa da sessão"}</p>
+        <p className={`${baseDescricao} text-slate-200`}>{descricao || "Aguardando atualização da etapa."}</p>
       </div>
     );
   }
@@ -783,7 +783,7 @@ export default function TelaoPage() {
         </div>
 
         <div className="rounded-2xl bg-slate-800 p-5">
-          <span className="text-slate-400">QuÃ³rum</span>
+          <span className="text-slate-400">Quórum</span>
           <div
             className={`mt-1 text-3xl font-black ${
               quorumAtingido ? "text-green-400" : "text-red-400"
@@ -794,7 +794,7 @@ export default function TelaoPage() {
         </div>
 
         <div className="rounded-2xl bg-slate-800 p-5">
-          <span className="text-slate-400">Votos necessÃ¡rios</span>
+          <span className="text-slate-400">Votos necessários</span>
           <div className="mt-1 text-4xl font-black">{necessarios}</div>
         </div>
       </div>
@@ -818,7 +818,7 @@ export default function TelaoPage() {
   if (loading && !votacao && !resultadoFinal) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-950 text-white">
-        <h1 className="text-4xl font-bold">Carregando telÃ£o...</h1>
+        <h1 className="text-4xl font-bold">Carregando telão...</h1>
       </main>
     );
   }
@@ -836,7 +836,7 @@ export default function TelaoPage() {
 
           <div className="mb-8 rounded-3xl bg-slate-900 p-8 text-center shadow-2xl">
             <p className="text-xl font-bold uppercase tracking-widest text-slate-400">
-              Resultado final da votaÃ§Ã£o
+              Resultado final da votação
             </p>
 
             <h1
@@ -851,7 +851,7 @@ export default function TelaoPage() {
               }`}
             >
               {resultadoFinal.resultado === "SEM_QUORUM"
-                ? "SEM QUÃ“RUM"
+                ? "SEM QUÓRUM"
                 : resultadoFinal.resultado}
             </h1>
 
@@ -874,7 +874,7 @@ export default function TelaoPage() {
               </div>
 
               <div className="rounded-2xl bg-slate-800 p-5">
-                <span className="text-slate-400">SessÃ£o</span>
+                <span className="text-slate-400">Sessão</span>
                 <div className="mt-1 text-3xl font-bold">
                   {resultadoFinal.votacao.pautas?.sessoes?.titulo || "-"}
                 </div>
@@ -911,14 +911,14 @@ export default function TelaoPage() {
             </div>
 
             <div className="rounded-3xl bg-red-600 p-8 text-center shadow-2xl">
-              <p className="text-3xl font-bold">NÃƒO</p>
+              <p className="text-3xl font-bold">NÃO</p>
               <p className="mt-4 text-8xl font-black">
                 {resultadoFinal.totais.nao}
               </p>
             </div>
 
             <div className="rounded-3xl bg-yellow-500 p-8 text-center shadow-2xl">
-              <p className="text-3xl font-bold">ABSTENÃ‡ÃƒO</p>
+              <p className="text-3xl font-bold">ABSTENÇÃO</p>
               <p className="mt-4 text-8xl font-black">
                 {resultadoFinal.totais.abstencao}
               </p>
@@ -979,7 +979,7 @@ export default function TelaoPage() {
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={brasaoUrl}
-                  alt="BrasÃ£o da cÃ¢mara"
+                  alt="Brasão da câmara"
                   className="h-12 w-12 object-contain"
                 />
               ) : (
@@ -1021,7 +1021,7 @@ export default function TelaoPage() {
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={brasaoUrl}
-                alt="BrasÃ£o da cÃ¢mara"
+                alt="Brasão da câmara"
                 className="h-12 w-12 object-contain"
               />
             ) : (
@@ -1049,7 +1049,7 @@ export default function TelaoPage() {
           <div className="flex flex-wrap items-start justify-between gap-6">
             <div>
               <p className="text-xl font-bold uppercase tracking-widest text-green-400">
-                VotaÃ§Ã£o em andamento
+                Votação em andamento
               </p>
 
               <h1 className="mt-4 text-6xl font-black leading-tight">
@@ -1086,7 +1086,7 @@ export default function TelaoPage() {
             </div>
 
             <div className="rounded-2xl bg-slate-800 p-5">
-              <span className="text-slate-400">SessÃ£o</span>
+              <span className="text-slate-400">Sessão</span>
                 <div className="mt-1 text-4xl font-bold">
                   {votacao.pautas?.sessoes?.titulo || "-"}
                 </div>
@@ -1108,12 +1108,12 @@ export default function TelaoPage() {
           </div>
 
           <div className="rounded-3xl bg-red-600 p-8 text-center shadow-2xl">
-            <p className="text-3xl font-bold">NÃƒO</p>
+            <p className="text-3xl font-bold">NÃO</p>
             <p className="mt-4 text-8xl font-black">{totalNao}</p>
           </div>
 
           <div className="rounded-3xl bg-yellow-500 p-8 text-center text-white shadow-2xl">
-            <p className="text-3xl font-bold">ABSTENÃ‡ÃƒO</p>
+            <p className="text-3xl font-bold">ABSTENÇÃO</p>
             <p className="mt-4 text-8xl font-black">{totalAbstencao}</p>
           </div>
         </div>
@@ -1162,4 +1162,5 @@ export default function TelaoPage() {
     </main>
   );
 }
+
 

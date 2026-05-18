@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -60,37 +60,38 @@ export default function AtasPage() {
   }
 
   return (
-    <main className="flex min-h-screen bg-slate-100">
+    <main className="admin-page">
       <Sidebar />
 
-      <section className="flex-1 p-8">
-        <div className="mb-8 flex items-center justify-between">
+      <section className="admin-content">
+        <div className="admin-container">
+        <div className="admin-header">
           <div>
             <p className="text-sm font-bold uppercase tracking-widest text-blue-600">
               Sistema legislativo
             </p>
 
-            <h1 className="mt-2 text-5xl font-black text-slate-900">
+            <h1 className="admin-title">
               Atas de Votação
             </h1>
           </div>
 
           <button
             onClick={carregarVotacoes}
-            className="rounded-2xl bg-blue-600 px-6 py-4 text-lg font-bold text-white hover:bg-blue-700"
+            className="btn btn-primary"
           >
             Atualizar
           </button>
         </div>
 
         {loading ? (
-          <div className="rounded-3xl bg-white p-10 text-center shadow">
+          <div className="card-shell p-10 text-center">
             <p className="text-2xl font-bold text-slate-700">
               Carregando atas...
             </p>
           </div>
         ) : votacoes.length === 0 ? (
-          <div className="rounded-3xl bg-white p-10 text-center shadow">
+          <div className="card-shell p-10 text-center">
             <p className="text-2xl font-bold text-slate-700">
               Nenhuma votação encerrada.
             </p>
@@ -98,7 +99,7 @@ export default function AtasPage() {
         ) : (
           <div className="grid gap-6">
             {votacoes.map((votacao) => (
-              <div key={votacao.id} className="rounded-3xl bg-white p-8 shadow">
+              <div key={votacao.id} className="card-shell p-8">
                 <div className="flex flex-wrap items-start justify-between gap-6">
                   <div>
                     <p className="text-sm font-bold uppercase tracking-widest text-green-600">
@@ -134,7 +135,7 @@ export default function AtasPage() {
                   <div className="flex flex-col gap-3">
                     <Link
                       href={`/atas/${votacao.id}`}
-                      className="rounded-2xl bg-slate-900 px-6 py-4 text-center text-lg font-bold text-white hover:bg-slate-800"
+                      className="btn btn-dark"
                     >
                       Ver ata
                     </Link>
@@ -142,7 +143,7 @@ export default function AtasPage() {
                     <a
                       href={`${API_BASE_URL}/atas/votacao/${votacao.id}/pdf`}
                       target="_blank"
-                      className="rounded-2xl bg-blue-600 px-6 py-4 text-center text-lg font-bold text-white hover:bg-blue-700"
+                      className="btn btn-primary"
                     >
                       Abrir PDF
                     </a>
@@ -152,7 +153,10 @@ export default function AtasPage() {
             ))}
           </div>
         )}
+        </div>
       </section>
     </main>
   );
 }
+
+

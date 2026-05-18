@@ -2,6 +2,7 @@ export class UpdateVereadorDto {
   nome!: string;
   email!: string;
   partido!: string;
+  partido_logo_url?: string | null;
   cadeiraNumero!: number;
   ativo!: boolean;
   role?: 'VEREADOR' | 'PRESIDENTE';

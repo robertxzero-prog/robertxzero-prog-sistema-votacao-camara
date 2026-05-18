@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { api } from "@/services/api";
@@ -138,28 +138,28 @@ export default function PautasPage() {
   }
 
   return (
-    <main className="flex min-h-screen bg-slate-100">
+    <main className="admin-page">
       <Sidebar />
 
-      <section className="flex-1 p-6">
-      <div className="mx-auto max-w-7xl">
-        <div className="mb-6 flex items-center justify-between">
+      <section className="admin-content">
+      <div className="admin-container">
+        <div className="admin-header">
           <div>
-            <h1 className="text-3xl font-bold text-slate-900">Pautas</h1>
-            <p className="mt-1 text-sm text-slate-600">
+            <h1 className="admin-title">Pautas</h1>
+            <p className="admin-subtitle">
               Gerencie as pautas das sessões e abra votações automaticamente.
             </p>
           </div>
 
           <button
             onClick={() => setModalCriarAberto(true)}
-            className="rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700"
+            className="btn btn-primary"
           >
             Nova pauta
           </button>
         </div>
 
-        <div className="overflow-hidden rounded-xl bg-white shadow">
+        <div className="table-shell">
           {loading ? (
             <div className="p-6 text-center text-slate-600">
               Carregando pautas...
@@ -170,30 +170,30 @@ export default function PautasPage() {
             </div>
           ) : (
             <table className="w-full border-collapse">
-              <thead className="bg-slate-900 text-white">
+              <thead className="table-head">
                 <tr>
-                  <th className="px-4 py-3 text-left text-sm font-semibold">
+                  <th className="table-th">
                     Ordem
                   </th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold">
+                  <th className="table-th">
                     Título
                   </th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold">
+                  <th className="table-th">
                     Sessão
                   </th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold">
+                  <th className="table-th">
                     Autor
                   </th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold">
+                  <th className="table-th">
                     Maioria
                   </th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold">
+                  <th className="table-th">
                     Votações
                   </th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold">
+                  <th className="table-th">
                     Criada em
                   </th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold">
+                  <th className="table-th">
                     Ações
                   </th>
                 </tr>
@@ -205,12 +205,12 @@ export default function PautasPage() {
                   const votacaoEncerrada = possuiVotacaoEncerrada(pauta);
 
                   return (
-                    <tr key={pauta.id} className="border-b hover:bg-slate-50">
-                      <td className="px-4 py-3 text-sm text-slate-700">
+                    <tr key={pauta.id} className="table-row">
+                      <td className="table-td">
                         {pauta.numero_ordem}
                       </td>
 
-                      <td className="px-4 py-3">
+                      <td className="table-td">
                         <div className="font-semibold text-slate-900">
                           {pauta.titulo}
                         </div>
@@ -221,31 +221,31 @@ export default function PautasPage() {
                         )}
                       </td>
 
-                      <td className="px-4 py-3 text-sm text-slate-700">
+                      <td className="table-td">
                         {pauta.sessoes?.titulo || "-"}
                       </td>
 
-                      <td className="px-4 py-3 text-sm text-slate-700">
+                      <td className="table-td">
                         {pauta.usuarios?.nome || "-"}
                       </td>
 
-                      <td className="px-4 py-3 text-sm text-slate-700">
+                      <td className="table-td">
                         {textoTipoMaioria(pauta.tipo_maioria)}
                       </td>
 
-                      <td className="px-4 py-3 text-sm text-slate-700">
+                      <td className="table-td">
                         {pauta.votacoes?.length || 0}
                       </td>
 
-                      <td className="px-4 py-3 text-sm text-slate-700">
+                      <td className="table-td">
                         {formatarData(pauta.criada_em)}
                       </td>
 
-                      <td className="px-4 py-3">
+                      <td className="table-td">
                         <div className="flex flex-wrap gap-2">
                           <button
                             onClick={() => setPautaEditando(pauta)}
-                            className="rounded bg-yellow-500 px-3 py-1 text-sm font-semibold text-white hover:bg-yellow-600"
+                            className="btn btn-muted !px-3 !py-1.5"
                           >
                             Editar
                           </button>
@@ -253,7 +253,7 @@ export default function PautasPage() {
                           {!votacaoAberta && !votacaoEncerrada && (
                             <button
                               onClick={() => abrirVotacao(pauta.id)}
-                              className="rounded bg-green-600 px-3 py-1 text-sm font-semibold text-white hover:bg-green-700"
+                              className="btn btn-success !px-3 !py-1.5"
                             >
                               Abrir votação
                             </button>
@@ -262,21 +262,21 @@ export default function PautasPage() {
                           {votacaoAberta && (
                             <button
                               onClick={() => encerrarVotacao(votacaoAberta.id)}
-                              className="rounded bg-red-600 px-3 py-1 text-sm font-semibold text-white hover:bg-red-700"
+                              className="btn btn-danger !px-3 !py-1.5"
                             >
                               Encerrar votação
                             </button>
                           )}
 
                           {votacaoEncerrada && (
-                            <span className="rounded bg-slate-200 px-3 py-1 text-sm font-semibold text-slate-700">
+                            <span className="pill pill-slate">
                               Encerrada
                             </span>
                           )}
 
                           <button
                             onClick={() => excluirPauta(pauta.id)}
-                            className="rounded bg-slate-700 px-3 py-1 text-sm font-semibold text-white hover:bg-slate-800"
+                            className="btn btn-dark !px-3 !py-1.5"
                           >
                             Excluir
                           </button>
@@ -315,3 +315,5 @@ export default function PautasPage() {
     </main>
   );
 }
+
+

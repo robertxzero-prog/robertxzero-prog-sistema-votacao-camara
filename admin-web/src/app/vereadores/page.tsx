@@ -1,6 +1,6 @@
-'use client';
+﻿'use client';
 
-import { useEffect, useState } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 
 import { Sidebar } from '@/components/Sidebar';
 import { api } from '@/services/api';
@@ -13,11 +13,83 @@ type Usuario = {
   email: string;
   role: string;
   foto_url: string | null;
+  partido_logo_url?: string | null;
   ativo: boolean;
   partido?: string;
   cadeiraNumero?: number | null;
   cargo_mesa?: 'PRESIDENTE' | 'VICE_PRESIDENTE' | 'SECRETARIO_GERAL' | null;
 };
+
+function IconButton({
+  title,
+  tone = 'neutral',
+  onClick,
+  children,
+}: {
+  title: string;
+  tone?: 'neutral' | 'danger';
+  onClick?: () => void;
+  children: ReactNode;
+}) {
+  const toneClasses =
+    tone === 'danger'
+      ? 'border-rose-300 text-rose-600 hover:bg-rose-50 focus-visible:ring-rose-300'
+      : 'border-slate-300 text-slate-700 hover:bg-slate-50 focus-visible:ring-blue-300';
+
+  return (
+    <button
+      type="button"
+      title={title}
+      aria-label={title}
+      onClick={onClick}
+      className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-white shadow-sm transition-all duration-150 hover:-translate-y-0.5 hover:shadow focus-visible:outline-none focus-visible:ring-2 ${toneClasses}`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
+      <path
+        d="M4 7h16M10 11v6M14 11v6M6 7l1 12h10l1-12M9 7V5h6v2"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function CameraIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
+      <path
+        d="M4 8h3l1.5-2h7L17 8h3v11H4V8z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+      <circle cx="12" cy="13.5" r="3.5" stroke="currentColor" strokeWidth="2" />
+    </svg>
+  );
+}
+
+function FlagIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
+      <path
+        d="M6 4v16M6 5h10l-2 3 2 3H6"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
 
 export default function VereadoresPage() {
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
@@ -94,7 +166,7 @@ export default function VereadoresPage() {
 
     formData.append('foto', arquivo);
 
-    await api.post(
+    const response = await api.post(
       `/usuarios/${usuarioId}/foto`,
       formData,
       {
@@ -103,6 +175,11 @@ export default function VereadoresPage() {
         },
       },
     );
+
+    if (response.data?.ok === false) {
+      alert(response.data?.mensagem || 'Nao foi possivel salvar a foto.');
+      return;
+    }
 
     await carregarUsuarios();
   }
@@ -115,76 +192,104 @@ export default function VereadoresPage() {
     await carregarUsuarios();
   }
 
+  async function uploadLogoPartido(
+    usuarioId: string,
+    arquivo: File,
+  ) {
+    const formData = new FormData();
+    formData.append('logo', arquivo);
+
+    const response = await api.post(
+      `/usuarios/${usuarioId}/logo-partido`,
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } },
+    );
+
+    if (response.data?.ok === false) {
+      alert(response.data?.mensagem || 'Nao foi possivel salvar o logo do partido.');
+      return;
+    }
+    await carregarUsuarios();
+  }
+
+  async function removerLogoPartido(
+    usuarioId: string,
+  ) {
+    await api.delete(`/usuarios/${usuarioId}/logo-partido`);
+    await carregarUsuarios();
+  }
+
   useEffect(() => {
     carregarUsuarios();
   }, []);
 
   return (
-    <main className="flex min-h-screen bg-gray-100">
+    <main className="admin-page">
       <Sidebar />
 
-      <section className="flex-1 p-8">
-        <div className="flex justify-between items-center mb-8">
+      <section className="admin-content">
+        <div className="admin-container">
+        <div className="admin-header">
           <div>
-            <h1 className="text-4xl font-bold text-gray-800">
+            <h1 className="admin-title">
               Vereadores
             </h1>
 
-            <p className="text-gray-600 mt-2">
+            <p className="admin-subtitle">
               Gerencie os vereadores cadastrados no sistema.
             </p>
           </div>
 
           <button
             onClick={() => setModalCadastroAberto(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-lg font-semibold"
+            className="btn btn-primary"
           >
             Cadastrar Vereador
           </button>
         </div>
 
-        <div className="bg-white rounded-2xl shadow overflow-hidden">
+        <div className="table-shell overflow-x-hidden">
           {carregando ? (
-            <p className="p-6 text-gray-600">
+            <p className="p-6 text-slate-600">
               Carregando vereadores...
             </p>
           ) : (
-            <table className="w-full">
-              <thead className="bg-gray-200">
+            <table className="w-full table-fixed">
+              <thead className="table-head">
                 <tr>
-                  <th className="text-left p-4 text-gray-700">
+                  <th className="table-th w-[14%]">
                     Foto
                   </th>
 
-                  <th className="text-left p-4 text-gray-700">
+                  <th className="table-th w-[12%]">
                     Nome
                   </th>
 
-                  <th className="text-left p-4 text-gray-700">
+                  <th className="table-th w-[18%]">
                     Email
                   </th>
 
-                  <th className="text-left p-4 text-gray-700">
+                  <th className="table-th w-[10%]">
                     Perfil
                   </th>
 
-                  <th className="text-left p-4 text-gray-700">
+                  <th className="table-th w-[12%]">
                     Cargo da mesa
                   </th>
 
-                  <th className="text-left p-4 text-gray-700">
+                  <th className="table-th w-[8%]">
                     Partido
                   </th>
 
-                  <th className="text-left p-4 text-gray-700">
+                  <th className="table-th w-[7%]">
                     Cadeira
                   </th>
 
-                  <th className="text-left p-4 text-gray-700">
+                  <th className="table-th w-[9%]">
                     Status
                   </th>
 
-                  <th className="text-left p-4 text-gray-700">
+                  <th className="table-th w-[10%] pr-6">
                     Ações
                   </th>
                 </tr>
@@ -194,77 +299,120 @@ export default function VereadoresPage() {
                 {usuarios.map((usuario) => (
                   <tr
                     key={usuario.id}
-                    className="border-t border-gray-200"
+                    className="table-row"
                   >
                     <td className="p-4">
-                      <div className="flex flex-col gap-2">
-                        {usuario.foto_url ? (
-                          <img
-                            src={usuario.foto_url}
-                            alt={usuario.nome}
-                            className="rounded-full object-cover w-14 h-14"
-                          />
-                        ) : (
-                          <div className="w-14 h-14 rounded-full bg-gray-300" />
-                        )}
-
-                        <label className="text-xs text-blue-600 hover:underline cursor-pointer">
-                          Alterar Foto
-
-                          <input
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={(event) => {
-                              const arquivo =
-                                event.target.files?.[0];
-
-                              if (!arquivo) {
-                                return;
-                              }
-
-                              uploadFoto(
-                                usuario.id,
-                                arquivo,
-                              );
-                            }}
-                          />
-                        </label>
-
-                        {usuario.foto_url && (
-                          <button
-                            onClick={() =>
-                              removerFoto(usuario.id)
-                            }
-                            className="text-xs text-red-600 hover:underline text-left"
-                          >
-                            Remover Foto
-                          </button>
-                        )}
+                      <div className="flex items-center gap-3">
+                        <div className="flex w-14 flex-col items-center gap-2">
+                          {usuario.foto_url ? (
+                            <img
+                              src={usuario.foto_url}
+                              alt={usuario.nome}
+                              className="rounded-full object-cover w-14 h-14"
+                            />
+                          ) : (
+                            <div className="w-14 h-14 rounded-full bg-gray-300" />
+                          )}
+                          {usuario.partido_logo_url ? (
+                            <img
+                              src={usuario.partido_logo_url}
+                              alt={`Logo do partido ${usuario.partido || ''}`}
+                              className="h-7 w-7 rounded border border-slate-200 object-contain"
+                            />
+                          ) : (
+                            <div className="h-7 w-7 rounded border border-slate-200 bg-slate-100" />
+                          )}
+                        </div>
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center gap-2">
+                            <label
+                              title="Adicionar/alterar foto"
+                              className="cursor-pointer"
+                            >
+                              <span className="sr-only">
+                                Adicionar/alterar foto
+                              </span>
+                              <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-700 shadow-sm transition-all duration-150 hover:-translate-y-0.5 hover:bg-slate-50 hover:shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300">
+                                <CameraIcon />
+                              </span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(event) => {
+                                  const arquivo = event.target.files?.[0];
+                                  if (!arquivo) return;
+                                  uploadFoto(usuario.id, arquivo);
+                                }}
+                              />
+                            </label>
+                            {usuario.foto_url && (
+                              <IconButton
+                                title="Remover foto"
+                                tone="danger"
+                                onClick={() => removerFoto(usuario.id)}
+                              >
+                                <TrashIcon />
+                              </IconButton>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <label
+                              title="Adicionar/alterar logo do partido"
+                              className="cursor-pointer"
+                            >
+                              <span className="sr-only">
+                                Adicionar/alterar logo do partido
+                              </span>
+                              <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-700 shadow-sm transition-all duration-150 hover:-translate-y-0.5 hover:bg-slate-50 hover:shadow">
+                                <FlagIcon />
+                              </span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(event) => {
+                                  const arquivo = event.target.files?.[0];
+                                  if (!arquivo) return;
+                                  uploadLogoPartido(usuario.id, arquivo);
+                                }}
+                              />
+                            </label>
+                            {usuario.partido_logo_url && (
+                              <IconButton
+                                title="Remover logo do partido"
+                                tone="danger"
+                                onClick={() => removerLogoPartido(usuario.id)}
+                              >
+                                <TrashIcon />
+                              </IconButton>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </td>
 
-                    <td className="p-4 text-gray-800 font-medium">
+                    <td className="table-td font-semibold text-slate-900">
                       {usuario.nome}
                     </td>
 
-                    <td className="p-4 text-gray-600">
+                    <td className="table-td break-all">
                       {usuario.email}
                     </td>
 
-                    <td className="p-4 text-gray-600">
+                    <td className="table-td">
                       {usuario.role === 'PRESIDENTE' ? (
-                        <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-semibold">
+                        <span className="pill pill-slate">
                           Presidente
                         </span>
                       ) : (
-                        <span className="bg-slate-100 text-slate-700 px-3 py-1 rounded-full text-sm">
+                        <span className="pill pill-slate">
                           Vereador
                         </span>
                       )}
                     </td>
 
-                    <td className="p-4 text-gray-600">
+                    <td className="table-td">
                       {usuario.cargo_mesa === 'PRESIDENTE'
                         ? 'Presidente da Mesa'
                         : usuario.cargo_mesa === 'VICE_PRESIDENTE'
@@ -274,30 +422,31 @@ export default function VereadoresPage() {
                             : '-'}
                     </td>
 
-                    <td className="p-4 text-gray-600">
+                    <td className="table-td whitespace-normal break-words [overflow-wrap:anywhere] leading-tight">
                       {usuario.partido || '-'}
                     </td>
 
-                    <td className="p-4 text-gray-600">
+                    <td className="table-td">
                       {usuario.cadeiraNumero ?? '-'}
                     </td>
 
                     <td className="p-4">
                       {usuario.ativo ? (
-                        <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm">
+                        <span className="pill pill-green">
                           Ativo
                         </span>
                       ) : (
-                        <span className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-sm">
+                        <span className="pill pill-red">
                           Inativo
                         </span>
                       )}
                     </td>
 
-                    <td className="p-4 flex gap-3">
+                    <td className="table-td pr-6">
+                      <div className="flex flex-col items-start gap-1.5">
                       <button
                         onClick={() => abrirEdicao(usuario)}
-                        className="text-blue-600 hover:underline"
+                        className="action-link leading-tight"
                       >
                         Editar
                       </button>
@@ -306,8 +455,8 @@ export default function VereadoresPage() {
                         onClick={() => alterarStatus(usuario)}
                         className={
                           usuario.ativo
-                            ? 'text-red-600 hover:underline'
-                            : 'text-green-600 hover:underline'
+                            ? 'action-link-danger leading-tight'
+                            : 'action-link leading-tight'
                         }
                       >
                         {usuario.ativo ? 'Desativar' : 'Ativar'}
@@ -315,16 +464,18 @@ export default function VereadoresPage() {
 
                       <button
                         onClick={() => excluirUsuario(usuario)}
-                        className="text-red-700 hover:underline font-medium"
+                        className="action-link-danger leading-tight"
                       >
                         Excluir
                       </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           )}
+        </div>
         </div>
       </section>
 
@@ -343,3 +494,4 @@ export default function VereadoresPage() {
     </main>
   );
 }
+

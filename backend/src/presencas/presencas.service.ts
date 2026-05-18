@@ -175,14 +175,23 @@ export class PresencasService {
       },
     });
 
-    const totalVereadores = 9;
+    const totalVereadores = await this.prisma.vereadores.count({
+      where: {
+        usuarios: {
+          ativo: true,
+        },
+        cadeiras: {
+          ativa: true,
+        },
+      },
+    });
 
-    const minimoMaioriaSimples = 5;
+    const minimoMaioriaSimples = Math.floor(totalVereadores / 2) + 1;
 
     return {
       presentes: totalPresentes,
 
-      ausentes: totalVereadores - totalPresentes,
+      ausentes: Math.max(0, totalVereadores - totalPresentes),
 
       total_vereadores: totalVereadores,
 

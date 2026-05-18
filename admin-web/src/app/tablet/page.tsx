@@ -54,6 +54,17 @@ type Quorum = {
   quorum_atingido: boolean;
 };
 
+type SessaoAtiva = {
+  id: string;
+  titulo: string;
+  descricao?: string | null;
+  status?: string | null;
+  etapa?: EtapaSessao;
+  etapa_atual?: EtapaSessao;
+  etapa_titulo?: string | null;
+  etapa_descricao?: string | null;
+};
+
 type PresencaAtualizada = {
   sessao_id: string;
   quorum: Quorum;
@@ -81,13 +92,14 @@ type EtapaSessao =
 export default function TabletPage() {
   const [usuario, setUsuario] = useState<UsuarioLogado | null>(null);
   const [votacao, setVotacao] = useState<VotacaoAtiva | null>(null);
+  const [sessaoAtiva, setSessaoAtiva] = useState<SessaoAtiva | null>(null);
   const [quorum, setQuorum] = useState<Quorum | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [enviando, setEnviando] = useState(false);
 
   const [erro, setErro] = useState("");
-  const [mensagem, setMensagem] = useState("Aguardando votação...");
+  const [mensagem, setMensagem] = useState("Aguardando sessão...");
 
   const [conectado, setConectado] = useState(false);
 
@@ -109,36 +121,57 @@ export default function TabletPage() {
     return [] as TipoFalaSessao[];
   })();
 
+  const sessaoAtualId = sessaoAtiva?.id || votacao?.pautas?.sessao_id || "";
+
+  const etapaLabels: Record<EtapaSessao, string> = {
+    ABERTURA: "Abertura",
+    LEITURA_BIBLICA: "Leitura bíblica",
+    CHAMADA_VEREADORES: "Chamada dos vereadores",
+    VERIFICACAO_QUORUM: "Verificação de quórum",
+    LEITURA_EXPEDIENTE: "Leitura do expediente",
+    PEQUENAS_COMUNICACOES: "Pequenas comunicações",
+    GRANDE_EXPEDIENTE: "Grande expediente",
+    ORDEM_DO_DIA: "Ordem do dia",
+    RESULTADO: "Resultado",
+    EXPLICACOES_PESSOAIS: "Explicações pessoais",
+    ENCERRAMENTO: "Encerramento",
+  };
+
   async function carregarDados() {
     try {
       setLoading(true);
       setErro("");
 
-      const [usuarioResponse, votacaoResponse] = await Promise.all([
+      const [usuarioResponse, votacaoResponse, sessaoResponse] = await Promise.all([
         api.get("/auth/me"),
         api.get("/votacoes/ativa"),
+        api.get("/sessoes/ativa"),
       ]);
 
       setUsuario(usuarioResponse.data);
 
       setVotacao(votacaoResponse.data);
+      setSessaoAtiva(sessaoResponse.data);
 
-      if (votacaoResponse.data?.pautas?.sessao_id) {
+      const sessaoId =
+        sessaoResponse.data?.id || votacaoResponse.data?.pautas?.sessao_id;
+
+      if (sessaoId) {
         const etapaResponse = await api.get(
-          `/sessoes/${votacaoResponse.data.pautas.sessao_id}/etapa`,
+          `/sessoes/${sessaoId}/etapa`,
         );
         setEtapaSessao(
           (etapaResponse.data?.etapa as EtapaSessao) || "ABERTURA",
         );
 
         const quorumResponse = await api.get(
-          `/presencas/${votacaoResponse.data.pautas.sessao_id}/quorum`,
+          `/presencas/${sessaoId}/quorum`,
         );
 
         setQuorum(quorumResponse.data);
 
         const presencasResponse = await api.get(
-          `/presencas/${votacaoResponse.data.pautas.sessao_id}`,
+          `/presencas/${sessaoId}`,
         );
 
         const vereadorId = usuarioResponse.data?.vereador?.id;
@@ -148,6 +181,10 @@ export default function TabletPage() {
         );
 
         setPresencaConfirmada(confirmou);
+      } else {
+        setQuorum(null);
+        setPresencaConfirmada(false);
+        setEtapaSessao("ABERTURA");
       }
     } catch (error: any) {
       console.error(error);
@@ -222,6 +259,7 @@ export default function TabletPage() {
     socket.on("sessao_etapa_atualizada", (data: { etapa?: EtapaSessao }) => {
       if (data?.etapa) {
         setEtapaSessao(data.etapa);
+        carregarDados();
       }
     });
 
@@ -296,7 +334,7 @@ export default function TabletPage() {
   }
 
   async function confirmarPresenca() {
-    if (!votacao?.pautas?.sessao_id) {
+    if (!sessaoAtualId) {
       alert("Nenhuma sessão ativa.");
 
       return;
@@ -305,7 +343,7 @@ export default function TabletPage() {
     try {
       setEnviando(true);
 
-      await api.post(`/presencas/${votacao.pautas.sessao_id}/confirmar`);
+      await api.post(`/presencas/${sessaoAtualId}/confirmar`);
 
       setPresencaConfirmada(true);
 
@@ -372,7 +410,7 @@ export default function TabletPage() {
   }
 
   async function solicitarFala() {
-    if (!votacao?.pautas?.sessao_id) {
+    if (!sessaoAtualId) {
       alert("Nenhuma sessão ativa.");
       return;
     }
@@ -383,7 +421,7 @@ export default function TabletPage() {
     try {
       setEnviando(true);
       const response = await api.post(
-        `/sessoes/${votacao.pautas.sessao_id}/fila-oradores/solicitar`,
+        `/sessoes/${sessaoAtualId}/fila-oradores/solicitar`,
         { tipo_fala: tipoFalaPedido },
       );
       alert(response.data?.mensagem || "Pedido de fala enviado.");
@@ -443,14 +481,103 @@ export default function TabletPage() {
 
         <p className="mb-4 text-sm text-slate-400">{mensagem}</p>
 
-        {!votacao ? (
+        {!sessaoAtualId ? (
           <section className="flex flex-1 items-center justify-center rounded-3xl bg-slate-900 p-8 text-center shadow">
             <div>
-              <p className="text-2xl font-bold text-yellow-400">{mensagem}</p>
+              <p className="text-sm font-black uppercase tracking-[0.3em] text-amber-300">
+                Plenário em espera
+              </p>
 
               <h2 className="mt-4 text-5xl font-black">
-                Nenhuma votação aberta
+                Nenhuma sessão ativa
               </h2>
+
+              <p className="mt-3 text-xl text-slate-300">
+                Aguarde a abertura da sessão pelo controle da sessão.
+              </p>
+            </div>
+          </section>
+        ) : !votacao ? (
+          <section className="flex flex-1 flex-col rounded-3xl border border-slate-800 bg-[radial-gradient(circle_at_top_left,#1e3a8a_0,#0f172a_38%,#020617_100%)] p-8 shadow-2xl">
+            <div className="flex flex-wrap items-start justify-between gap-5">
+              <div>
+                <p className="text-sm font-black uppercase tracking-[0.3em] text-cyan-200">
+                  Sessão em andamento
+                </p>
+                <h2 className="mt-3 text-5xl font-black leading-tight">
+                  {sessaoAtiva?.titulo || "Sessão plenária"}
+                </h2>
+                <p className="mt-3 max-w-3xl text-xl text-slate-300">
+                  {sessaoAtiva?.descricao || "Acompanhe a etapa, confirme presença e solicite fala quando liberado."}
+                </p>
+              </div>
+
+              {!presencaConfirmada ? (
+                <button
+                  disabled={enviando}
+                  onClick={confirmarPresenca}
+                  className="rounded-2xl bg-blue-500 px-6 py-4 text-xl font-black text-white shadow-lg shadow-blue-950/40 transition hover:-translate-y-0.5 hover:bg-blue-400 disabled:opacity-60"
+                >
+                  Confirmar presença
+                </button>
+              ) : (
+                <div className="rounded-2xl border border-emerald-400/40 bg-emerald-500/15 px-6 py-4 text-xl font-black text-emerald-100">
+                  Presença confirmada
+                </div>
+              )}
+            </div>
+
+            <div className="mt-8 grid gap-4 md:grid-cols-4">
+              <div className="rounded-2xl border border-white/10 bg-white/10 p-5 backdrop-blur">
+                <p className="text-sm font-bold uppercase tracking-widest text-slate-300">Etapa</p>
+                <p className="mt-2 text-2xl font-black">{etapaLabels[etapaSessao]}</p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/10 p-5 backdrop-blur">
+                <p className="text-sm font-bold uppercase tracking-widest text-slate-300">Presentes</p>
+                <p className="mt-2 text-4xl font-black">{quorum?.presentes || 0}</p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/10 p-5 backdrop-blur">
+                <p className="text-sm font-bold uppercase tracking-widest text-slate-300">Mínimo</p>
+                <p className="mt-2 text-4xl font-black">{quorum?.quorum_minimo || "-"}</p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/10 p-5 backdrop-blur">
+                <p className="text-sm font-bold uppercase tracking-widest text-slate-300">Quórum</p>
+                <p className={`mt-2 text-2xl font-black ${quorum?.quorum_atingido ? "text-emerald-300" : "text-amber-300"}`}>
+                  {quorum?.quorum_atingido ? "Atingido" : "Aguardando"}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-6 rounded-2xl border border-purple-300/20 bg-purple-500/10 p-5">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-black uppercase tracking-[0.25em] text-purple-200">
+                    Pedido de fala
+                  </p>
+                  <p className="mt-1 text-slate-300">
+                    Disponível conforme a etapa atual da sessão.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <select
+                    value={tipoFalaPedido}
+                    onChange={(e) => setTipoFalaPedido(e.target.value as TipoFalaSessao)}
+                    className="rounded-xl border border-white/10 bg-slate-950 px-4 py-3 text-white"
+                  >
+                    <option value="PEQUENAS_COMUNICACOES" disabled={!tiposPermitidos.includes("PEQUENAS_COMUNICACOES")}>Pequenas comunicações</option>
+                    <option value="GRANDE_EXPEDIENTE" disabled={!tiposPermitidos.includes("GRANDE_EXPEDIENTE")}>Grande expediente</option>
+                    <option value="ORDEM_DO_DIA" disabled={!tiposPermitidos.includes("ORDEM_DO_DIA")}>Ordem do dia</option>
+                    <option value="EXPLICACOES_PESSOAIS" disabled={!tiposPermitidos.includes("EXPLICACOES_PESSOAIS")}>Explicações pessoais</option>
+                  </select>
+                  <button
+                    disabled={enviando || tiposPermitidos.length === 0}
+                    onClick={solicitarFala}
+                    className="rounded-xl bg-purple-500 px-5 py-3 font-black text-white transition hover:-translate-y-0.5 hover:bg-purple-400 disabled:opacity-50"
+                  >
+                    Pedir fala
+                  </button>
+                </div>
+              </div>
             </div>
           </section>
         ) : (
@@ -469,7 +596,7 @@ export default function TabletPage() {
 
                 {!presencaConfirmada ? (
                   <button
-                    disabled={enviando || !tiposPermitidos.includes(tipoFalaPedido)}
+                    disabled={enviando}
                     onClick={confirmarPresenca}
                     className="rounded-2xl bg-blue-600 px-6 py-4 text-xl font-bold hover:bg-blue-700 disabled:opacity-60"
                   >

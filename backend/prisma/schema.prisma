@@ -184,6 +184,7 @@ model vereadores {
   usuario_id     String    @unique @db.Uuid
   cadeira_id     String    @unique @db.Uuid
   partido        String?   @db.VarChar(20)
+  partido_logo_url String?
   cargo_mesa     cargo_mesa?
   mandato_inicio DateTime? @db.Date
   mandato_fim    DateTime? @db.Date

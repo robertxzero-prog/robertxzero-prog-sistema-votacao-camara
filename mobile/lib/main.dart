@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -7,11 +7,64 @@ import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'config/app_config.dart';
 import 'services/api_client.dart';
 import 'services/realtime_service.dart';
 
 void main() {
   runApp(const CamaraVotacaoApp());
+}
+
+class _AppColors {
+  static const background = Color(0xFFF3F7FB);
+  static const navy = Color(0xFF081225);
+  static const navy2 = Color(0xFF10213D);
+  static const blue = Color(0xFF1455D9);
+  static const cyan = Color(0xFF10B7D9);
+  static const green = Color(0xFF0F9F6E);
+  static const amber = Color(0xFFD99114);
+  static const red = Color(0xFFDC2626);
+  static const text = Color(0xFF061126);
+  static const muted = Color(0xFF58667E);
+  static const border = Color(0xFFD9E3F0);
+}
+
+const Map<String, String> _etapaLabels = {
+  'ABERTURA': 'Abertura',
+  'LEITURA_BIBLICA': 'Leitura b\u00edblica',
+  'CHAMADA_VEREADORES': 'Chamada dos vereadores',
+  'VERIFICACAO_QUORUM': 'Verifica\u00e7\u00e3o de qu\u00f3rum',
+  'LEITURA_EXPEDIENTE': 'Leitura do expediente',
+  'PEQUENAS_COMUNICACOES': 'Pequenas comunica\u00e7\u00f5es',
+  'GRANDE_EXPEDIENTE': 'Grande expediente',
+  'ORDEM_DO_DIA': 'Ordem do dia',
+  'RESULTADO': 'Resultado',
+  'EXPLICACOES_PESSOAIS': 'Explica\u00e7\u00f5es pessoais',
+  'ENCERRAMENTO': 'Encerramento',
+};
+
+const Map<String, String> _tipoFalaLabels = {
+  'PEQUENAS_COMUNICACOES': 'Pequenas comunica\u00e7\u00f5es',
+  'GRANDE_EXPEDIENTE': 'Grande expediente',
+  'ORDEM_DO_DIA': 'Ordem do dia',
+  'EXPLICACOES_PESSOAIS': 'Explica\u00e7\u00f5es pessoais',
+};
+
+String _labelEtapa(String? etapa) => _etapaLabels[etapa] ?? 'Aguardando';
+
+String _labelTipoFala(String tipo) => _tipoFalaLabels[tipo] ?? tipo;
+
+String? _normalizarUrlMidia(String? url) {
+  final value = url?.trim();
+  if (value == null || value.isEmpty) return null;
+  if (value.startsWith('data:image')) return value;
+
+  final match = RegExp(r'/uploads/([^?#]+)').firstMatch(value);
+  if (match != null) {
+    return '${AppConfig.apiBaseUrl.replaceAll(RegExp(r'/$'), '')}/uploads/${match.group(1)}';
+  }
+
+  return value;
 }
 
 class CamaraVotacaoApp extends StatelessWidget {
@@ -20,11 +73,21 @@ class CamaraVotacaoApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Votacao Camara',
+      title: 'SILCAM Tablet',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF1455D9)),
+        scaffoldBackgroundColor: _AppColors.background,
         useMaterial3: true,
+        cardTheme: CardThemeData(
+          color: Colors.white,
+          elevation: 0,
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+            side: const BorderSide(color: _AppColors.border),
+          ),
+        ),
       ),
       home: const AuthGate(),
     );
@@ -267,15 +330,15 @@ class _PresidentPageState extends State<PresidentPage> {
     final votacaoId = _votacaoAtiva?['id']?.toString();
     if (votacaoId == null) return;
     if (!_presenceConfirmed) {
-      _showSnack('Confirme sua presenca antes de votar.');
+      _showSnack('Confirme sua presen\u00e7a antes de votar.');
       return;
     }
     if (_quorum?['quorum_atingido'] != true) {
-      _showSnack('Quorum minimo ainda nao foi atingido.');
+      _showSnack('Qu\u00f3rum m\u00ednimo ainda n\u00e3o foi atingido.');
       return;
     }
     if (_presidenteJaVotou) {
-      _showSnack('Voce ja votou nesta votacao.');
+      _showSnack('Voc\u00ea j\u00e1 votou nesta vota\u00e7\u00e3o.');
       return;
     }
     try {
@@ -398,7 +461,7 @@ class _PresidentPageState extends State<PresidentPage> {
                   controller: controller,
                   keyboardType: TextInputType.number,
                   decoration: const InputDecoration(
-                    labelText: 'Código de 6 dígitos',
+                    labelText: 'C\u00f3digo de 6 d\u00edgitos',
                     border: OutlineInputBorder(),
                   ),
                 ),
@@ -439,7 +502,7 @@ class _PresidentPageState extends State<PresidentPage> {
   @override
   Widget build(BuildContext context) {
     final nome = _usuarioAtual?['nome']?.toString() ?? 'Presidente';
-    final fotoUrl = _usuarioAtual?['foto_url']?.toString();
+    final fotoUrl = _normalizarUrlMidia(_usuarioAtual?['foto_url']?.toString());
     final hasLocalPhoto = _avatarLocalBase64 != null && _avatarLocalBase64!.isNotEmpty;
     final hasRemotePhoto = fotoUrl != null && fotoUrl.isNotEmpty;
     final initial = nome.isNotEmpty ? nome[0].toUpperCase() : 'P';
@@ -524,13 +587,13 @@ class _PresidentPageState extends State<PresidentPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            temVotacaoAtiva ? 'Votacao em andamento' : 'Nenhuma votacao aberta',
+                            temVotacaoAtiva ? 'Vota\u00e7\u00e3o em andamento' : 'Nenhuma vota\u00e7\u00e3o aberta',
                             style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
                           ),
                           const SizedBox(height: 8),
                           Text(
                             temVotacaoAtiva
-                                ? (_votacaoAtiva?['pautas']?['titulo']?.toString() ?? 'Votacao ativa')
+                                ? (_votacaoAtiva?['pautas']?['titulo']?.toString() ?? 'Vota\u00e7\u00e3o ativa')
                                 : 'Aguardando abertura',
                           ),
                           const SizedBox(height: 12),
@@ -540,7 +603,7 @@ class _PresidentPageState extends State<PresidentPage> {
                               runSpacing: 8,
                               children: [
                                 _Badge(label: 'Presentes', value: '${_quorum!['presentes'] ?? 0}'),
-                                _Badge(label: 'Quorum', value: _quorum!['quorum_atingido'] == true ? 'OK' : 'Insuficiente'),
+                                _Badge(label: 'Qu\u00f3rum', value: _quorum!['quorum_atingido'] == true ? 'OK' : 'Insuficiente'),
                               ],
                             ),
                           const SizedBox(height: 12),
@@ -549,7 +612,7 @@ class _PresidentPageState extends State<PresidentPage> {
                               height: 56,
                               child: FilledButton(
                                 onPressed: _sending ? null : _encerrarVotacao,
-                                child: const Text('Encerrar votacao'),
+                                child: const Text('Encerrar vota\u00e7\u00e3o'),
                               ),
                             ),
                           if (temVotacaoAtiva && _presidenteEhVereador) ...[
@@ -592,8 +655,8 @@ class _PresidentPageState extends State<PresidentPage> {
                                       ),
                                       label: Text(
                                         _presenceConfirmed
-                                            ? 'Presenca confirmada'
-                                            : 'Confirmar presenca',
+                                            ? 'Presen\u00e7a confirmada'
+                                            : 'Confirmar presen\u00e7a',
                                       ),
                                     ),
                                   ),
@@ -645,7 +708,7 @@ class _PresidentPageState extends State<PresidentPage> {
                                                   fontWeight: FontWeight.w900,
                                                 ),
                                               ),
-                                              child: const Text('NAO'),
+                                              child: const Text('N\u00c3O'),
                                             ),
                                           ),
                                           const SizedBox(width: 8),
@@ -688,7 +751,7 @@ class _PresidentPageState extends State<PresidentPage> {
                           const SizedBox(height: 8),
                           ..._pautas.map((pauta) {
                             final id = pauta['id']?.toString() ?? '';
-                            final titulo = pauta['titulo']?.toString() ?? 'Sem titulo';
+                            final titulo = pauta['titulo']?.toString() ?? 'Sem t\u00edtulo';
                             final temAberta =
                                 (pauta['votacoes'] as List?)?.any((v) => v['status'] == 'ABERTA') == true;
                             return ListTile(
@@ -698,7 +761,7 @@ class _PresidentPageState extends State<PresidentPage> {
                                 onPressed: _sending || temVotacaoAtiva || temAberta || id.isEmpty
                                     ? null
                                     : () => _abrirVotacao(id),
-                                child: const Text('Iniciar votacao'),
+                                child: const Text('Iniciar vota\u00e7\u00e3o'),
                               ),
                             );
                           }),
@@ -720,6 +783,27 @@ class _LoginPageState extends State<LoginPage> {
   bool _loading = false;
   bool _requires2fa = false;
   String? _error;
+  Map<String, dynamic>? _configCamara;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadConfigCamara();
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _senhaController.dispose();
+    _twoFactorController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadConfigCamara() async {
+    final config = await widget.api.configuracaoCamara();
+    if (!mounted) return;
+    setState(() => _configCamara = config);
+  }
 
   Future<void> _login() async {
     setState(() {
@@ -738,7 +822,7 @@ class _LoginPageState extends State<LoginPage> {
       if (data['requires_2fa'] == true) {
         setState(() {
           _requires2fa = true;
-          _error = 'Informe o código 2FA para continuar.';
+          _error = 'Informe o codigo 2FA para continuar.';
         });
         return;
       }
@@ -754,33 +838,70 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
+    final nomeCamara =
+        _configCamara?['nome_oficial']?.toString().trim().isNotEmpty == true
+            ? _configCamara!['nome_oficial'].toString().trim()
+            : 'C\u00e2mara Municipal';
+    final brasaoUrl = _normalizarUrlMidia(_configCamara?['brasao_url']?.toString());
+
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: _AppColors.navy,
       body: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 460),
+          constraints: const BoxConstraints(maxWidth: 520),
           child: Card(
             margin: const EdgeInsets.all(24),
             child: Padding(
-              padding: const EdgeInsets.all(28),
+              padding: const EdgeInsets.all(30),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text(
-                    'Votacao Camara',
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                          fontWeight: FontWeight.w900,
+                  Center(
+                    child: Column(
+                      children: [
+                        _CamaraLogoMark(brasaoUrl: brasaoUrl),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'SILCAM',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: _AppColors.text,
+                            fontSize: 30,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1.2,
+                          ),
                         ),
+                        const SizedBox(height: 4),
+                        Text(
+                          nomeCamara,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: _AppColors.blue,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Acesso do vereador ao tablet de vota\u00e7\u00e3o',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: _AppColors.muted,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 8),
-                  const Text('Entre com o usuario do vereador.'),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 26),
                   TextField(
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
                     decoration: const InputDecoration(
-                      labelText: 'Email',
+                      prefixIcon: Icon(Icons.mail_outline_rounded),
+                      labelText: 'E-mail',
                       border: OutlineInputBorder(),
                     ),
                   ),
@@ -789,6 +910,7 @@ class _LoginPageState extends State<LoginPage> {
                     controller: _senhaController,
                     obscureText: true,
                     decoration: const InputDecoration(
+                      prefixIcon: Icon(Icons.lock_outline_rounded),
                       labelText: 'Senha',
                       border: OutlineInputBorder(),
                     ),
@@ -800,7 +922,8 @@ class _LoginPageState extends State<LoginPage> {
                       controller: _twoFactorController,
                       keyboardType: TextInputType.number,
                       decoration: const InputDecoration(
-                        labelText: 'Código 2FA (6 dígitos)',
+                        prefixIcon: Icon(Icons.verified_user_outlined),
+                        labelText: 'C\u00f3digo 2FA (6 d\u00edgitos)',
                         border: OutlineInputBorder(),
                       ),
                       onSubmitted: (_) => _login(),
@@ -808,20 +931,61 @@ class _LoginPageState extends State<LoginPage> {
                   ],
                   if (_error != null) ...[
                     const SizedBox(height: 14),
-                    Text(
-                      _error!,
-                      style: const TextStyle(
-                        color: Colors.red,
-                        fontWeight: FontWeight.bold,
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFEBEE),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0xFFFFCDD2)),
+                      ),
+                      child: Text(
+                        _error!,
+                        style: const TextStyle(
+                          color: _AppColors.red,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ],
                   const SizedBox(height: 22),
-                  FilledButton(
-                    onPressed: _loading ? null : _login,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      child: Text(_loading ? 'Entrando...' : 'Entrar'),
+                  SizedBox(
+                    height: 58,
+                    child: FilledButton.icon(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: _AppColors.blue,
+                        disabledBackgroundColor: const Color(0xFFCBD5E1),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                      ),
+                      onPressed: _loading ? null : _login,
+                      icon: _loading
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.4,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(Icons.login_rounded),
+                      label: Text(
+                        _loading ? 'Entrando...' : 'Entrar',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  const Text(
+                    'Sistema legislativo com presen\u00e7a, fala e vota\u00e7\u00e3o em tempo real.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: _AppColors.muted,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ],
@@ -829,6 +993,67 @@ class _LoginPageState extends State<LoginPage> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _CamaraLogoMark extends StatelessWidget {
+  const _CamaraLogoMark({this.brasaoUrl});
+
+  final String? brasaoUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final image = _buildImage();
+
+    return Container(
+      width: 88,
+      height: 88,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FBFF),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: _AppColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: _AppColors.blue.withValues(alpha: 0.16),
+            blurRadius: 22,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: image ??
+          const Icon(
+            Icons.account_balance_rounded,
+            color: _AppColors.blue,
+            size: 46,
+          ),
+    );
+  }
+
+  Widget? _buildImage() {
+    final url = brasaoUrl?.trim();
+    if (url == null || url.isEmpty) return null;
+
+    if (url.startsWith('data:image')) {
+      final comma = url.indexOf(',');
+      if (comma <= 0 || comma >= url.length - 1) return null;
+      try {
+        final bytes = base64Decode(url.substring(comma + 1));
+        return Image.memory(bytes, fit: BoxFit.contain);
+      } catch (_) {
+        return null;
+      }
+    }
+
+    return Image.network(
+      url,
+      fit: BoxFit.contain,
+      errorBuilder: (_, __, ___) => const Icon(
+        Icons.account_balance_rounded,
+        color: _AppColors.blue,
+        size: 46,
       ),
     );
   }
@@ -856,6 +1081,7 @@ class _VotingPageState extends State<VotingPage> {
 
   Map<String, dynamic>? _usuario;
   Map<String, dynamic>? _votacao;
+  Map<String, dynamic>? _sessaoAtiva;
   Map<String, dynamic>? _quorum;
   List<Map<String, dynamic>> _historico = [];
   List<Map<String, dynamic>> _sessoesRelatorio = [];
@@ -871,11 +1097,13 @@ class _VotingPageState extends State<VotingPage> {
   bool _loadingAta = false;
   bool _loadingSessaoDetalhe = false;
   String? _error;
-  String _message = 'Aguardando votacao...';
+  String _message = 'Aguardando vota\u00e7\u00e3o...';
   Timer? _pendingSyncTimer;
   int _pendingActionsCount = 0;
   bool _syncingPending = false;
   int _tabIndex = 0;
+  String _etapaSessao = 'ABERTURA';
+  String _tipoFalaPedido = 'PEQUENAS_COMUNICACOES';
   String _historicoBusca = '';
   String _historicoPeriodo = 'todos';
   String _historicoOrdenacao = 'recentes';
@@ -915,10 +1143,16 @@ class _VotingPageState extends State<VotingPage> {
           _flushPendingActions();
         }
       },
-      onVotacaoAtualizada: (_) => _loadAllData(message: 'Votacao atualizada'),
-      onVotacaoEncerrada: (_) => _loadAllData(message: 'Votacao encerrada'),
+      onVotacaoAtualizada: (_) => _loadAllData(message: 'Vota\u00e7\u00e3o atualizada'),
+      onVotacaoEncerrada: (_) => _loadAllData(message: 'Vota\u00e7\u00e3o encerrada'),
       onVotoRegistrado: (_) => _loadAllData(message: 'Novo voto registrado'),
-      onPresencaAtualizada: (_) => _loadAllData(message: 'Presenca atualizada'),
+      onPresencaAtualizada: (_) => _loadAllData(message: 'Presen\u00e7a atualizada'),
+      onSessaoEtapaAtualizada: (data) {
+        final etapa = data is Map ? data['etapa']?.toString() : null;
+        _loadAllData(message: etapa == null ? 'Etapa atualizada' : _labelEtapa(etapa));
+      },
+      onOradorAtualizado: (_) => _loadAllData(message: 'Ordem de fala atualizada'),
+      onFilaOradoresAtualizada: (_) => _loadAllData(message: 'Fila de fala atualizada'),
     );
   }
 
@@ -931,15 +1165,21 @@ class _VotingPageState extends State<VotingPage> {
 
       final usuario = await widget.api.me();
       final votacao = await widget.api.votacaoAtiva();
+      final sessaoAtiva = await widget.api.sessaoAtiva();
       final historico = await widget.api.votacoesEncerradas();
       final sessoesRelatorio = await widget.api.relatorioSessoes();
 
       Map<String, dynamic>? quorum;
       var presenceConfirmed = false;
-      final sessaoId = votacao?['pautas']?['sessao_id']?.toString();
+      var etapaSessao =
+          sessaoAtiva?['etapa']?.toString() ?? sessaoAtiva?['etapa_atual']?.toString();
+      final sessaoId = sessaoAtiva?['id']?.toString() ??
+          votacao?['pautas']?['sessao_id']?.toString();
       final vereadorId = usuario['vereador']?['id']?.toString();
 
       if (sessaoId != null) {
+        final etapa = await widget.api.etapaSessao(sessaoId);
+        etapaSessao = etapa['etapa']?.toString() ?? etapaSessao ?? 'ABERTURA';
         quorum = await widget.api.quorum(sessaoId);
         if (vereadorId != null) {
           final presencas = await widget.api.presencas(sessaoId);
@@ -953,18 +1193,24 @@ class _VotingPageState extends State<VotingPage> {
       setState(() {
         _usuario = usuario;
         _votacao = votacao;
+        _sessaoAtiva = sessaoAtiva;
         _quorum = quorum;
+        _etapaSessao = etapaSessao ?? 'ABERTURA';
         _presenceConfirmed = presenceConfirmed;
         _historico = historico;
         _sessoesRelatorio = sessoesRelatorio;
         _historicoPagina = 1;
         _message = message ??
-            (votacao == null ? 'Aguardando votacao...' : 'Votacao aberta');
+            (votacao != null
+                ? 'Vota\u00e7\u00e3o aberta'
+                : sessaoAtiva != null
+                    ? _labelEtapa(etapaSessao)
+                    : 'Aguardando sess\u00e3o...');
       });
       await _loadAvatarLocal();
     } catch (error) {
       if (_isUnauthorized(error)) {
-        await _forceLogout('Sessao expirada. Entre novamente.');
+        await _forceLogout('Sess\u00e3o expirada. Entre novamente.');
         return;
       }
       if (!mounted) return;
@@ -1064,9 +1310,10 @@ class _VotingPageState extends State<VotingPage> {
   }
 
   Future<void> _confirmPresence() async {
-    final sessaoId = _votacao?['pautas']?['sessao_id']?.toString();
+    final sessaoId = _sessaoAtiva?['id']?.toString() ??
+        _votacao?['pautas']?['sessao_id']?.toString();
     if (sessaoId == null) {
-      _showSnack('Nenhuma sessao ativa.');
+      _showSnack('Nenhuma sess\u00e3o ativa.');
       return;
     }
 
@@ -1079,30 +1326,68 @@ class _VotingPageState extends State<VotingPage> {
             'tipo': 'confirmar_presenca',
             'sessao_id': sessaoId,
           });
-          _showSnack('Sem conexao. Presenca enfileirada para sincronizar.');
+          _showSnack('Sem conex\u00e3o. Presen\u00e7a enfileirada para sincronizar.');
           return;
         }
         rethrow;
       }
-      await _loadAllData(message: 'Presenca confirmada');
+      await _loadAllData(message: 'Presen\u00e7a confirmada');
+    });
+  }
+
+  List<String> get _tiposFalaPermitidos {
+    if (_etapaSessao == 'PEQUENAS_COMUNICACOES') {
+      return const ['PEQUENAS_COMUNICACOES'];
+    }
+    if (_etapaSessao == 'GRANDE_EXPEDIENTE') {
+      return const ['GRANDE_EXPEDIENTE'];
+    }
+    if (_etapaSessao == 'ORDEM_DO_DIA') {
+      return const ['ORDEM_DO_DIA'];
+    }
+    if (_etapaSessao == 'EXPLICACOES_PESSOAIS') {
+      return const ['EXPLICACOES_PESSOAIS'];
+    }
+    return const [];
+  }
+
+  Future<void> _solicitarFala() async {
+    final sessaoId = _sessaoAtiva?['id']?.toString() ??
+        _votacao?['pautas']?['sessao_id']?.toString();
+    if (sessaoId == null) {
+      _showSnack('Nenhuma sess\u00e3o ativa.');
+      return;
+    }
+    if (_tiposFalaPermitidos.isEmpty) {
+      _showSnack('Pedido de fala indispon\u00edvel nesta etapa.');
+      return;
+    }
+
+    await _runSending(() async {
+      final tipo = _tiposFalaPermitidos.contains(_tipoFalaPedido)
+          ? _tipoFalaPedido
+          : _tiposFalaPermitidos.first;
+      final resposta = await widget.api.solicitarFala(sessaoId, tipo);
+      _showSnack(resposta['mensagem']?.toString() ?? 'Pedido enviado.');
+      await _loadAllData(message: 'Pedido de fala enviado');
     });
   }
 
   Future<void> _vote(String vote) async {
     if (_votacao == null) {
-      _showSnack('Nenhuma votacao aberta.');
+      _showSnack('Nenhuma vota\u00e7\u00e3o aberta.');
       return;
     }
     if (!_presenceConfirmed) {
-      _showSnack('Confirme sua presenca antes de votar.');
+      _showSnack('Confirme sua presen\u00e7a antes de votar.');
       return;
     }
     if (_quorum?['quorum_atingido'] != true) {
-      _showSnack('Quorum minimo ainda nao foi atingido.');
+      _showSnack('Qu\u00f3rum m\u00ednimo ainda n\u00e3o foi atingido.');
       return;
     }
     if (_hasVoted) {
-      _showSnack('Voce ja votou nesta votacao.');
+      _showSnack('Voc\u00ea j\u00e1 votou nesta vota\u00e7\u00e3o.');
       return;
     }
 
@@ -1121,7 +1406,7 @@ class _VotingPageState extends State<VotingPage> {
             'votacao_id': _votacao!['id'].toString(),
             'voto': vote,
           });
-          _showSnack('Sem conexao. Voto enfileirado para sincronizar.');
+          _showSnack('Sem conex\u00e3o. Voto enfileirado para sincronizar.');
           return;
         }
         rethrow;
@@ -1203,13 +1488,13 @@ class _VotingPageState extends State<VotingPage> {
     }
     if (sincronizadas > 0) {
       _showSnack('$sincronizadas acao(oes) offline sincronizada(s).');
-      await _loadAllData(message: 'Sincronizacao concluida');
+      await _loadAllData(message: 'Sincroniza\u00e7\u00e3o conclu\u00edda');
     }
   }
 
   Future<bool?> _confirmarVoto(String voto) {
     final votoExibicao = switch (voto) {
-      'NAO' => 'NAO',
+      'NAO' => 'N\u00c3O',
       'ABSTENCAO' => 'ABSTER',
       _ => voto,
     };
@@ -1286,7 +1571,7 @@ class _VotingPageState extends State<VotingPage> {
     final uri = Uri.parse(widget.api.ataPdfUrl(votacaoId));
     final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!ok) {
-      _showSnack('Nao foi possivel abrir o PDF.');
+      _showSnack('N\u00e3o foi poss\u00edvel abrir o PDF.');
     }
   }
 
@@ -1345,7 +1630,7 @@ class _VotingPageState extends State<VotingPage> {
       await widget.api.removerMinhaFoto(userId);
     } catch (error) {
       if (!_isUnauthorized(error)) {
-        _showSnack('Nao foi possivel remover no servidor, removendo localmente.');
+        _showSnack('N\u00e3o foi poss\u00edvel remover no servidor, removendo localmente.');
       }
     }
 
@@ -1386,26 +1671,32 @@ class _VotingPageState extends State<VotingPage> {
       context: context,
       builder: (context) {
         return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.add_a_photo),
-                title: const Text('Adicionar foto'),
-                onTap: () async {
-                  Navigator.of(context).pop();
-                  await _pickAvatarFromGallery();
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.delete_outline),
-                title: const Text('Remover foto'),
-                onTap: () async {
-                  Navigator.of(context).pop();
-                  await _removeAvatarLocal();
-                },
-              ),
-            ],
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _AvatarActionIcon(
+                  icon: Icons.add_photo_alternate_outlined,
+                  tooltip: 'Adicionar foto',
+                  accent: _AppColors.blue,
+                  onTap: () async {
+                    Navigator.of(context).pop();
+                    await _pickAvatarFromGallery();
+                  },
+                ),
+                const SizedBox(width: 14),
+                _AvatarActionIcon(
+                  icon: Icons.delete_outline_rounded,
+                  tooltip: 'Remover foto',
+                  accent: _AppColors.red,
+                  onTap: () async {
+                    Navigator.of(context).pop();
+                    await _removeAvatarLocal();
+                  },
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -1418,7 +1709,7 @@ class _VotingPageState extends State<VotingPage> {
 
   Future<void> _handleError(Object error) async {
     if (_isUnauthorized(error)) {
-      await _forceLogout('Sessao expirada. Entre novamente.');
+      await _forceLogout('Sess\u00e3o expirada. Entre novamente.');
       return;
     }
     _showSnack(error.toString());
@@ -1438,6 +1729,12 @@ class _VotingPageState extends State<VotingPage> {
     final vereador = _usuario?['vereador'] as Map<String, dynamic>?;
     final cadeira = vereador?['cadeira']?['numero']?.toString() ?? '-';
     final partido = vereador?['partido']?.toString() ?? '-';
+    final partidoLogoUrl = _normalizarUrlMidia(
+      vereador?['partido_logo_url']?.toString() ??
+          vereador?['partidoLogoUrl']?.toString() ??
+          vereador?['logo_partido_url']?.toString() ??
+          (_usuario?['partido_logo_url']?.toString()),
+    );
 
     if (role == 'PRESIDENTE' || role == 'ADMIN') {
       return PresidentPage(
@@ -1453,7 +1750,7 @@ class _VotingPageState extends State<VotingPage> {
         appBar: AppBar(
           backgroundColor: const Color(0xFF0F172A),
           foregroundColor: Colors.white,
-          title: const Text('Acesso nao permitido'),
+          title: const Text('Acesso n\u00e3o permitido'),
           actions: [
             IconButton(
               onPressed: widget.onLogout,
@@ -1469,7 +1766,7 @@ class _VotingPageState extends State<VotingPage> {
               child: Padding(
                 padding: EdgeInsets.all(18),
                 child: Text(
-                  'Este aplicativo de votacao esta habilitado apenas para perfil de vereador.',
+                  'Este aplicativo de vota\u00e7\u00e3o est\u00e1 habilitado apenas para perfil de vereador.',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                   textAlign: TextAlign.center,
                 ),
@@ -1480,110 +1777,121 @@ class _VotingPageState extends State<VotingPage> {
       );
     }
 
+    final hasSession = _sessaoAtiva != null ||
+        _votacao?['pautas']?['sessao_id'] != null;
+
     return Scaffold(
-      backgroundColor: const Color(0xFF020617),
+      backgroundColor: _AppColors.background,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0F172A),
+        backgroundColor: _AppColors.navy,
         foregroundColor: Colors.white,
-        title: Text(userName),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(42),
-          child: Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Wrap(
-              spacing: 8,
+        toolbarHeight: 76,
+        titleSpacing: 20,
+        title: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.white24),
+              ),
+              child: _PartyLogoBadge(logoUrl: partidoLogoUrl, partido: partido),
+            ),
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _TopTab(
-                  label: 'Votacao',
-                  selected: _tabIndex == 0,
-                  onTap: () => setState(() => _tabIndex = 0),
+                Text(
+                  'Partido: $partido · Cadeira: $cadeira',
+                  style: const TextStyle(
+                    color: Colors.white54,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.2,
+                  ),
                 ),
-                _TopTab(
-                  label: 'Historico',
-                  selected: _tabIndex == 1,
-                  onTap: () => setState(() => _tabIndex = 1),
-                ),
-                _TopTab(
-                  label: 'Ata',
-                  selected: _tabIndex == 2,
-                  onTap: () => setState(() => _tabIndex = 2),
-                ),
-                _TopTab(
-                  label: 'Relatorios',
-                  selected: _tabIndex == 3,
-                  onTap: () => setState(() => _tabIndex = 3),
+                Text(
+                  userName,
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ],
             ),
-          ),
+          ],
         ),
         actions: [
-          Row(
-            children: [
-              Icon(
-                _connected ? Icons.wifi : Icons.wifi_off,
-                color: _connected ? Colors.greenAccent : Colors.orangeAccent,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                _syncingPending
-                    ? 'Sincronizando'
-                    : _connected
-                        ? 'Online'
-                        : 'Reconectando',
-              ),
-              if (_pendingActionsCount > 0) ...[
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.amber.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: Colors.amber),
-                  ),
-                  child: Text(
-                    'Pendentes: $_pendingActionsCount',
-                    style: const TextStyle(
-                      color: Colors.amber,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
-              ],
-              const SizedBox(width: 12),
-            ],
+          _TabletStatusPill(
+            online: _connected,
+            syncing: _syncingPending,
+            pendingActions: _pendingActionsCount,
           ),
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: _UserAvatar(
-              nome: userName,
-              fotoBase64: _avatarLocalBase64,
-              fotoUrl: _usuario?['foto_url']?.toString() ??
+          const SizedBox(width: 10),
+          _UserAvatar(
+            nome: userName,
+            fotoBase64: _avatarLocalBase64,
+            fotoUrl: _normalizarUrlMidia(
+              _usuario?['foto_url']?.toString() ??
                   _usuario?['avatar_url']?.toString(),
-              onTap: _onAvatarTap,
             ),
+            onTap: _onAvatarTap,
           ),
           IconButton(
             onPressed: _loadAllData,
-            icon: const Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh_rounded),
             tooltip: 'Atualizar',
           ),
           IconButton(
             onPressed: widget.onLogout,
-            icon: const Icon(Icons.logout),
+            icon: const Icon(Icons.logout_rounded),
             tooltip: 'Sair',
           ),
+          const SizedBox(width: 8),
         ],
       ),
       body: SafeArea(
         child: _loading
-            ? const Center(child: CircularProgressIndicator())
+            ? const Center(child: CircularProgressIndicator(color: _AppColors.blue))
             : RefreshIndicator(
                 onRefresh: _loadAllData,
                 child: ListView(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
                   children: [
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: [
+                        _TopTab(
+                          label: 'Sess\u00e3o',
+                          icon: Icons.event_available_rounded,
+                          selected: _tabIndex == 0,
+                          onTap: () => setState(() => _tabIndex = 0),
+                        ),
+                        _TopTab(
+                          label: 'Hist\u00f3rico',
+                          icon: Icons.history_rounded,
+                          selected: _tabIndex == 1,
+                          onTap: () => setState(() => _tabIndex = 1),
+                        ),
+                        _TopTab(
+                          label: 'Ata',
+                          icon: Icons.description_rounded,
+                          selected: _tabIndex == 2,
+                          onTap: () => setState(() => _tabIndex = 2),
+                        ),
+                        _TopTab(
+                          label: 'Relat\u00f3rios',
+                          icon: Icons.analytics_rounded,
+                          selected: _tabIndex == 3,
+                          onTap: () => setState(() => _tabIndex = 3),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
                     if (_error != null)
                       Card(
                         color: Colors.red.shade100,
@@ -1597,10 +1905,31 @@ class _VotingPageState extends State<VotingPage> {
                         ),
                       ),
                     if (_tabIndex == 0) ...[
-                      _HeaderCard(
+                      _SessionHeroCard(
+                        sessao: _sessaoAtiva,
+                        etapa: _etapaSessao,
                         message: _message,
-                        partido: partido,
-                        cadeira: cadeira,
+                        hasVoting: _votacao != null,
+                        quorum: _quorum,
+                        presenceConfirmed: _presenceConfirmed,
+                        onConfirmPresence:
+                            hasSession && !_presenceConfirmed && !_sending
+                                ? _confirmPresence
+                                : null,
+                      ),
+                      const SizedBox(height: 12),
+                      _SpeechRequestCard(
+                        enabled: hasSession &&
+                            _tiposFalaPermitidos.isNotEmpty &&
+                            !_sending,
+                        tiposPermitidos: _tiposFalaPermitidos,
+                        tipoSelecionado: _tipoFalaPedido,
+                        onTipoChanged: (value) {
+                          if (value == null) return;
+                          setState(() => _tipoFalaPedido = value);
+                        },
+                        onSolicitar: _solicitarFala,
+                        etapa: _etapaSessao,
                       ),
                       const SizedBox(height: 12),
                       if (_votacao == null)
@@ -1665,7 +1994,7 @@ class _VotingPageState extends State<VotingPage> {
                         ata: _ataSelecionada,
                         onAbrirPdf: _abrirPdfAta,
                         fallback: _ataSelecionadaId == null
-                            ? 'Selecione uma votacao no Historico para carregar a ata.'
+                            ? 'Selecione uma vota\u00e7\u00e3o no Hist\u00f3rico para carregar a ata.'
                             : 'Carregando ata...',
                       ),
                     if (_tabIndex == 3)
@@ -1687,11 +2016,13 @@ class _VotingPageState extends State<VotingPage> {
 class _TopTab extends StatelessWidget {
   const _TopTab({
     required this.label,
+    required this.icon,
     required this.selected,
     required this.onTap,
   });
 
   final String label;
+  final IconData icon;
   final bool selected;
   final VoidCallback onTap;
 
@@ -1701,70 +2032,465 @@ class _TopTab extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(999),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color: selected ? Colors.white : Colors.white12,
+          color: selected ? _AppColors.navy : Colors.white,
           borderRadius: BorderRadius.circular(999),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontWeight: FontWeight.w700,
-            color: selected ? Colors.black87 : Colors.white,
+          border: Border.all(
+            color: selected ? _AppColors.navy : _AppColors.border,
           ),
+          boxShadow: selected
+              ? [
+                  BoxShadow(
+                    color: _AppColors.blue.withValues(alpha: 0.18),
+                    blurRadius: 18,
+                    offset: const Offset(0, 8),
+                  ),
+                ]
+              : null,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 18,
+              color: selected ? Colors.white : _AppColors.blue,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                color: selected ? Colors.white : _AppColors.text,
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-class _HeaderCard extends StatelessWidget {
-  const _HeaderCard({
-    required this.message,
-    required this.partido,
-    required this.cadeira,
+class _TabletStatusPill extends StatelessWidget {
+  const _TabletStatusPill({
+    required this.online,
+    required this.syncing,
+    required this.pendingActions,
   });
 
-  final String message;
-  final String partido;
-  final String cadeira;
+  final bool online;
+  final bool syncing;
+  final int pendingActions;
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      color: const Color(0xFF0F172A),
+    final color = online ? Colors.greenAccent : Colors.orangeAccent;
+    final label = syncing
+        ? 'Sincronizando'
+        : online
+            ? 'Online'
+            : 'Reconectando';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: Colors.white24),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(online ? Icons.signal_cellular_alt_rounded : Icons.wifi_off_rounded,
+              size: 18, color: color),
+          const SizedBox(width: 7),
+          Text(
+            pendingActions > 0 ? '$label · $pendingActions pend.' : label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SessionHeroCard extends StatelessWidget {
+  const _SessionHeroCard({
+    required this.sessao,
+    required this.etapa,
+    required this.message,
+    required this.hasVoting,
+    required this.quorum,
+    required this.presenceConfirmed,
+    required this.onConfirmPresence,
+  });
+
+  final Map<String, dynamic>? sessao;
+  final String etapa;
+  final String message;
+  final bool hasVoting;
+  final Map<String, dynamic>? quorum;
+  final bool presenceConfirmed;
+  final VoidCallback? onConfirmPresence;
+
+  @override
+  Widget build(BuildContext context) {
+    final titulo = sessao?['titulo']?.toString() ?? 'Aguardando sess\u00e3o ativa';
+    final descricao = sessao?['etapa_descricao']?.toString() ??
+        sessao?['descricao']?.toString() ??
+        'O tablet acompanha presen\u00e7a, fila de fala e vota\u00e7\u00e3o em tempo real.';
+    final presentes = quorum?['presentes']?.toString() ?? '0';
+    final total = quorum?['total_vereadores']?.toString() ?? '-';
+    final quorumOk = quorum?['quorum_atingido'] == true;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOut,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [_AppColors.navy, _AppColors.navy2],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: _AppColors.navy.withValues(alpha: 0.22),
+            blurRadius: 24,
+            offset: const Offset(0, 16),
+          ),
+        ],
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(22),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                _DarkChip(
+                  icon: Icons.event_note_rounded,
+                  label: _labelEtapa(etapa),
+                  color: _AppColors.cyan,
+                ),
+                if (hasVoting)
+                  _DarkChip(
+                    icon: Icons.how_to_vote_rounded,
+                    label: 'Vota\u00e7\u00e3o aberta',
+                    color: _AppColors.green,
+                  ),
+              ],
+            ),
+            const SizedBox(height: 18),
             Text(
-              message,
+              titulo,
               style: const TextStyle(
                 color: Colors.white,
-                fontSize: 20,
+                fontSize: 26,
                 fontWeight: FontWeight.w900,
+                height: 1.05,
               ),
             ),
-            if (message.toLowerCase().contains('aguardando')) ...[
-              const SizedBox(height: 10),
-              const Row(
-                children: [
-                  _WaitingVoteIconSmall(),
-                  SizedBox(width: 10),
-                  Text(
-                    'Aguardando votacao',
-                    style: TextStyle(color: Colors.white70),
-                  ),
-                ],
-              ),
-            ],
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
             Text(
-              'Partido: $partido | Cadeira: $cadeira',
-              style: const TextStyle(color: Colors.white70, fontSize: 15),
+              descricao,
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 18),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final isWide = constraints.maxWidth > 720;
+                final stats = [
+                  _HeroMetric(
+                    label: 'Presen\u00e7a',
+                    value: '$presentes/$total',
+                    tone: quorumOk ? _AppColors.green : _AppColors.amber,
+                  ),
+                  _HeroMetric(
+                    label: 'Qu\u00f3rum',
+                    value: quorumOk ? 'Atingido' : 'Pendente',
+                    tone: quorumOk ? _AppColors.green : _AppColors.amber,
+                  ),
+                  _HeroMetric(
+                    label: 'Confirma\u00e7\u00e3o',
+                    value: presenceConfirmed ? 'Confirmada' : 'Pendente',
+                    tone: presenceConfirmed ? _AppColors.green : _AppColors.cyan,
+                  ),
+                ];
+
+                return Flex(
+                  direction: isWide ? Axis.horizontal : Axis.vertical,
+                  children: [
+                    for (var i = 0; i < stats.length; i++) ...[
+                      if (isWide) Expanded(child: stats[i]) else stats[i],
+                      if (i != stats.length - 1)
+                        SizedBox(
+                          width: isWide ? 10 : 0,
+                          height: isWide ? 0 : 10,
+                        ),
+                    ],
+                    if (onConfirmPresence != null) ...[
+                      SizedBox(width: isWide ? 10 : 0, height: isWide ? 0 : 10),
+                      if (isWide)
+                        Expanded(
+                          child: SizedBox(
+                            height: 58,
+                            child: FilledButton.icon(
+                              style: FilledButton.styleFrom(
+                                backgroundColor: _AppColors.blue,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(18),
+                                ),
+                              ),
+                              onPressed: onConfirmPresence,
+                              icon: const Icon(Icons.person_add_alt_1_rounded),
+                              label: const Text(
+                                'Confirmar presen\u00e7a',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                          ),
+                        )
+                      else
+                        SizedBox(
+                          height: 58,
+                          child: FilledButton.icon(
+                            style: FilledButton.styleFrom(
+                              backgroundColor: _AppColors.blue,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(18),
+                              ),
+                            ),
+                            onPressed: onConfirmPresence,
+                            icon: const Icon(Icons.person_add_alt_1_rounded),
+                            label: const Text(
+                              'Confirmar presen\u00e7a',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ],
+                );
+              },
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DarkChip extends StatelessWidget {
+  const _DarkChip({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: Colors.white24),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 17, color: color),
+          const SizedBox(width: 7),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HeroMetric extends StatelessWidget {
+  const _HeroMetric({
+    required this.label,
+    required this.value,
+    required this.tone,
+  });
+
+  final String label;
+  final String value;
+  final Color tone;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minHeight: 74),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white24),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label.toUpperCase(),
+            style: TextStyle(
+              color: tone,
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1.4,
+            ),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SpeechRequestCard extends StatelessWidget {
+  const _SpeechRequestCard({
+    required this.enabled,
+    required this.tiposPermitidos,
+    required this.tipoSelecionado,
+    required this.onTipoChanged,
+    required this.onSolicitar,
+    required this.etapa,
+  });
+
+  final bool enabled;
+  final List<String> tiposPermitidos;
+  final String tipoSelecionado;
+  final ValueChanged<String?> onTipoChanged;
+  final VoidCallback onSolicitar;
+  final String etapa;
+
+  @override
+  Widget build(BuildContext context) {
+    final opcoes = tiposPermitidos.isEmpty ? const ['PEQUENAS_COMUNICACOES'] : tiposPermitidos;
+    final valor = opcoes.contains(tipoSelecionado) ? tipoSelecionado : opcoes.first;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isWide = constraints.maxWidth > 720;
+            final dropdown = DropdownButtonFormField<String>(
+              initialValue: valor,
+              items: opcoes
+                  .map(
+                    (tipo) => DropdownMenuItem(
+                      value: tipo,
+                      child: Text(_labelTipoFala(tipo)),
+                    ),
+                  )
+                  .toList(),
+              onChanged: enabled ? onTipoChanged : null,
+              decoration: const InputDecoration(
+                labelText: 'Tipo de fala',
+                border: OutlineInputBorder(),
+              ),
+            );
+            final button = SizedBox(
+              height: 58,
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: _AppColors.blue,
+                  disabledBackgroundColor: const Color(0xFFCBD5E1),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                onPressed: enabled ? onSolicitar : null,
+                icon: const Icon(Icons.record_voice_over_rounded),
+                label: const Text(
+                  'Pedir fala',
+                  style: TextStyle(fontWeight: FontWeight.w900),
+                ),
+              ),
+            );
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Ordem de fala',
+                  style: TextStyle(
+                    color: _AppColors.text,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  enabled
+                      ? 'Solicite sua inscri\u00e7\u00e3o na etapa ${_labelEtapa(etapa)}.'
+                      : 'A fala ser\u00e1 liberada quando a etapa permitir pronunciamentos.',
+                  style: const TextStyle(
+                    color: _AppColors.muted,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                if (isWide)
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(flex: 2, child: dropdown),
+                      const SizedBox(width: 12),
+                      Expanded(child: button),
+                    ],
+                  )
+                else
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      dropdown,
+                      const SizedBox(height: 12),
+                      button,
+                    ],
+                  ),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -1784,13 +2510,13 @@ class _EmptyVotingCard extends StatelessWidget {
             _WaitingVoteIcon(),
             SizedBox(height: 14),
             Text(
-              'Aguardando abertura de votacao',
+              'Aguardando abertura de vota\u00e7\u00e3o',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
             ),
             SizedBox(height: 8),
             Text(
-              'Assim que abrir, voce vota por aqui.',
+              'Assim que abrir, voc\u00ea vota por aqui.',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.black54),
             ),
@@ -1828,8 +2554,12 @@ class _VotingInfoCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              pauta?['titulo']?.toString() ?? 'Pauta sem titulo',
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
+              pauta?['titulo']?.toString() ?? 'Pauta sem t\u00edtulo',
+              style: const TextStyle(
+                color: _AppColors.text,
+                fontSize: 24,
+                fontWeight: FontWeight.w900,
+              ),
             ),
             if (pauta?['descricao'] != null) ...[
               const SizedBox(height: 8),
@@ -1841,7 +2571,7 @@ class _VotingInfoCard extends StatelessWidget {
               runSpacing: 10,
               children: [
                 _Badge(label: 'Presentes', value: '$present'),
-                _Badge(label: 'Quorum', value: quorumOk ? 'OK' : 'Insuficiente'),
+                _Badge(label: 'Qu\u00f3rum', value: quorumOk ? 'OK' : 'Insuficiente'),
                 _Badge(label: 'Maioria', value: tipoMaioria),
               ],
             ),
@@ -1849,11 +2579,19 @@ class _VotingInfoCard extends StatelessWidget {
             SizedBox(
               height: 68,
               child: FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: _AppColors.blue,
+                  disabledBackgroundColor: const Color(0xFFE2E8F0),
+                  disabledForegroundColor: _AppColors.muted,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                ),
                 onPressed: presenceConfirmed ? null : onConfirmPresence,
                 icon:
                     Icon(presenceConfirmed ? Icons.check_circle : Icons.person_add),
                 label: Text(
-                  presenceConfirmed ? 'Presenca confirmada' : 'Confirmar presenca',
+                  presenceConfirmed ? 'Presen\u00e7a confirmada' : 'Confirmar presen\u00e7a',
                   style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
                 ),
               ),
@@ -1876,12 +2614,16 @@ class _Badge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFFE2E8F0),
+        color: const Color(0xFFEAF1FB),
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _AppColors.border),
       ),
       child: Text(
         '$label: $value',
-        style: const TextStyle(fontWeight: FontWeight.bold),
+        style: const TextStyle(
+          color: _AppColors.text,
+          fontWeight: FontWeight.bold,
+        ),
       ),
     );
   }
@@ -1902,7 +2644,8 @@ class _VoteButtons extends StatelessWidget {
           Expanded(
             child: _VoteButton(
               label: 'SIM',
-              color: Colors.green.shade700,
+              icon: Icons.thumb_up_alt_rounded,
+              color: _AppColors.green,
               enabled: enabled,
               onPressed: () => onVote('SIM'),
             ),
@@ -1910,8 +2653,9 @@ class _VoteButtons extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: _VoteButton(
-              label: 'NAO',
-              color: Colors.red.shade700,
+              label: 'N\u00c3O',
+              icon: Icons.thumb_down_alt_rounded,
+              color: _AppColors.red,
               enabled: enabled,
               onPressed: () => onVote('NAO'),
             ),
@@ -1920,7 +2664,8 @@ class _VoteButtons extends StatelessWidget {
           Expanded(
             child: _VoteButton(
               label: 'ABSTER',
-              color: Colors.amber.shade700,
+              icon: Icons.do_not_disturb_on_total_silence_rounded,
+              color: _AppColors.amber,
               enabled: enabled,
               onPressed: () => onVote('ABSTENCAO'),
             ),
@@ -1934,12 +2679,14 @@ class _VoteButtons extends StatelessWidget {
 class _VoteButton extends StatelessWidget {
   const _VoteButton({
     required this.label,
+    required this.icon,
     required this.color,
     required this.enabled,
     required this.onPressed,
   });
 
   final String label;
+  final IconData icon;
   final Color color;
   final bool enabled;
   final VoidCallback onPressed;
@@ -1949,11 +2696,20 @@ class _VoteButton extends StatelessWidget {
     return FilledButton(
       style: FilledButton.styleFrom(
         backgroundColor: color,
-        disabledBackgroundColor: Colors.grey.shade500,
-        textStyle: const TextStyle(fontSize: 38, fontWeight: FontWeight.w900),
+        disabledBackgroundColor: const Color(0xFFCBD5E1),
+        disabledForegroundColor: _AppColors.muted,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        textStyle: const TextStyle(fontSize: 34, fontWeight: FontWeight.w900),
       ),
       onPressed: enabled ? onPressed : null,
-      child: Text(label),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 38),
+          const SizedBox(height: 10),
+          Text(label),
+        ],
+      ),
     );
   }
 }
@@ -2006,6 +2762,122 @@ class _UserAvatar extends StatelessWidget {
                     fontWeight: FontWeight.w900,
                   ),
                 ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PartyLogoBadge extends StatelessWidget {
+  const _PartyLogoBadge({this.logoUrl, this.partido});
+
+  final String? logoUrl;
+  final String? partido;
+
+  @override
+  Widget build(BuildContext context) {
+    if (logoUrl != null && logoUrl!.isNotEmpty) {
+      return Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          color: Colors.white.withValues(alpha: 0.9),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.all(2),
+            child: Image.network(
+              logoUrl!,
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => _PartyFallback(partido: partido),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return _PartyFallback(partido: partido);
+  }
+}
+
+class _PartyFallback extends StatelessWidget {
+  const _PartyFallback({this.partido});
+
+  final String? partido;
+
+  @override
+  Widget build(BuildContext context) {
+    final sigla = (partido ?? '')
+        .trim()
+        .split(' ')
+        .where((p) => p.isNotEmpty)
+        .map((p) => p[0].toUpperCase())
+        .take(2)
+        .join();
+
+    if (sigla.isNotEmpty) {
+      return Container(
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          sigla,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w800,
+            fontSize: 12,
+          ),
+        ),
+      );
+    }
+
+    return const Icon(Icons.how_to_vote_rounded);
+  }
+}
+
+class _AvatarActionIcon extends StatelessWidget {
+  const _AvatarActionIcon({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+    this.accent = _AppColors.navy,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
+          splashColor: accent.withValues(alpha: 0.14),
+          highlightColor: accent.withValues(alpha: 0.08),
+          child: Ink(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: accent.withValues(alpha: 0.28)),
+              color: Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: accent.withValues(alpha: 0.12),
+                  blurRadius: 12,
+                  offset: const Offset(0, 5),
+                ),
+              ],
+            ),
+            child: Icon(icon, color: accent, size: 22),
+          ),
         ),
       ),
     );
@@ -2092,7 +2964,7 @@ class _WaitingVoteIconSmallState extends State<_WaitingVoteIconSmall>
       child: const Icon(
         Icons.hourglass_top_rounded,
         size: 20,
-        color: Colors.white70,
+        color: _AppColors.blue,
       ),
     );
   }
@@ -2106,13 +2978,13 @@ class _VoteDoneCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = switch (vote) {
-      'NAO' => 'NAO',
-      'ABSTENCAO' => 'ABSTENCAO',
+      'NAO' => 'N\u00c3O',
+      'ABSTENCAO' => 'ABSTEN\u00c7\u00c3O',
       _ => vote ?? '-',
     };
 
     return Card(
-      color: Colors.green.shade900,
+      color: _AppColors.green,
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
@@ -2121,7 +2993,11 @@ class _VoteDoneCard extends StatelessWidget {
             const SizedBox(height: 12),
             const Text(
               'Voto registrado',
-              style: TextStyle(color: Colors.white, fontSize: 24),
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 24,
+                fontWeight: FontWeight.w900,
+              ),
             ),
             const SizedBox(height: 6),
             Text(
@@ -2192,7 +3068,7 @@ class _HistoricoView extends StatelessWidget {
                     onChanged: onBuscaChanged,
                     decoration: const InputDecoration(
                       prefixIcon: Icon(Icons.search),
-                      labelText: 'Buscar por pauta, sessao ou id',
+                      labelText: 'Buscar por pauta, sess\u00e3o ou id',
                       border: OutlineInputBorder(),
                     ),
                   ),
@@ -2200,15 +3076,15 @@ class _HistoricoView extends StatelessWidget {
                   DropdownButtonFormField<String>(
                     initialValue: periodo,
                     items: const [
-                      DropdownMenuItem(value: 'todos', child: Text('Todo periodo')),
+                      DropdownMenuItem(value: 'todos', child: Text('Todo per\u00edodo')),
                       DropdownMenuItem(value: 'hoje', child: Text('Somente hoje')),
-                      DropdownMenuItem(value: '7dias', child: Text('Ultimos 7 dias')),
+                      DropdownMenuItem(value: '7dias', child: Text('\u00daltimos 7 dias')),
                     ],
                     onChanged: (v) {
                       if (v != null) onPeriodoChanged(v);
                     },
                     decoration: const InputDecoration(
-                      labelText: 'Periodo',
+                      labelText: 'Per\u00edodo',
                       border: OutlineInputBorder(),
                     ),
                   ),
@@ -2226,14 +3102,14 @@ class _HistoricoView extends StatelessWidget {
                       ),
                       DropdownMenuItem(
                         value: 'sessao',
-                        child: Text('Sessao A-Z'),
+                        child: Text('Sess\u00e3o A-Z'),
                       ),
                     ],
                     onChanged: (v) {
                       if (v != null) onOrdenacaoChanged(v);
                     },
                     decoration: const InputDecoration(
-                      labelText: 'Ordenacao',
+                      labelText: 'Ordena\u00e7\u00e3o',
                       border: OutlineInputBorder(),
                     ),
                   ),
@@ -2246,8 +3122,8 @@ class _HistoricoView extends StatelessWidget {
               padding: const EdgeInsets.all(24),
               child: Text(
                 totalFiltrado == 0
-                    ? 'Nenhuma votacao encontrada para os filtros.'
-                    : 'Nenhuma votacao nesta pagina.',
+                    ? 'Nenhuma vota\u00e7\u00e3o encontrada para os filtros.'
+                    : 'Nenhuma vota\u00e7\u00e3o nesta p\u00e1gina.',
                 style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
               ),
             ),
@@ -2268,7 +3144,7 @@ class _HistoricoView extends StatelessWidget {
                   onChanged: onBuscaChanged,
                   decoration: const InputDecoration(
                     prefixIcon: Icon(Icons.search),
-                    labelText: 'Buscar por pauta, sessao ou id',
+                    labelText: 'Buscar por pauta, sess\u00e3o ou id',
                     border: OutlineInputBorder(),
                   ),
                 ),
@@ -2276,15 +3152,15 @@ class _HistoricoView extends StatelessWidget {
                 DropdownButtonFormField<String>(
                   initialValue: periodo,
                   items: const [
-                    DropdownMenuItem(value: 'todos', child: Text('Todo periodo')),
+                    DropdownMenuItem(value: 'todos', child: Text('Todo per\u00edodo')),
                     DropdownMenuItem(value: 'hoje', child: Text('Somente hoje')),
-                    DropdownMenuItem(value: '7dias', child: Text('Ultimos 7 dias')),
+                    DropdownMenuItem(value: '7dias', child: Text('\u00daltimos 7 dias')),
                   ],
                   onChanged: (v) {
                     if (v != null) onPeriodoChanged(v);
                   },
                   decoration: const InputDecoration(
-                    labelText: 'Periodo',
+                    labelText: 'Per\u00edodo',
                     border: OutlineInputBorder(),
                   ),
                 ),
@@ -2302,14 +3178,14 @@ class _HistoricoView extends StatelessWidget {
                     ),
                     DropdownMenuItem(
                       value: 'sessao',
-                      child: Text('Sessao A-Z'),
+                      child: Text('Sess\u00e3o A-Z'),
                     ),
                   ],
                   onChanged: (v) {
                     if (v != null) onOrdenacaoChanged(v);
                   },
                   decoration: const InputDecoration(
-                    labelText: 'Ordenacao',
+                    labelText: 'Ordena\u00e7\u00e3o',
                     border: OutlineInputBorder(),
                   ),
                 ),
@@ -2319,16 +3195,16 @@ class _HistoricoView extends StatelessWidget {
         ),
         ...historico.map((item) {
           final pauta = item['pautas'] as Map<String, dynamic>?;
-          final titulo = pauta?['titulo']?.toString() ?? 'Sem titulo';
+          final titulo = pauta?['titulo']?.toString() ?? 'Sem t\u00edtulo';
           final sessao = pauta?['sessoes'] as Map<String, dynamic>?;
-          final sessaoTitulo = sessao?['titulo']?.toString() ?? 'Sessao sem titulo';
+          final sessaoTitulo = sessao?['titulo']?.toString() ?? 'Sess\u00e3o sem t\u00edtulo';
           final encerradaEm = item['encerrada_em']?.toString() ?? '-';
           final id = item['id']?.toString() ?? '';
 
           return Card(
             child: ListTile(
               title: Text(titulo),
-              subtitle: Text('Sessao: $sessaoTitulo\nEncerrada: $encerradaEm'),
+              subtitle: Text('Sess\u00e3o: $sessaoTitulo\nEncerrada: $encerradaEm'),
               trailing: FilledButton(
                 onPressed: loadingAta || id.isEmpty
                     ? null
@@ -2353,7 +3229,7 @@ class _HistoricoView extends StatelessWidget {
                       onPressed: onPaginaAnterior,
                       icon: const Icon(Icons.chevron_left),
                     ),
-                    Text('Pagina $paginaAtual/$totalPaginas'),
+                    Text('P\u00e1gina $paginaAtual/$totalPaginas'),
                     IconButton(
                       onPressed: onPaginaSeguinte,
                       icon: const Icon(Icons.chevron_right),
@@ -2410,7 +3286,7 @@ class _AtaView extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              pauta?['titulo']?.toString() ?? 'Ata de votacao',
+              pauta?['titulo']?.toString() ?? 'Ata de vota\u00e7\u00e3o',
               style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 10),
@@ -2425,7 +3301,7 @@ class _AtaView extends StatelessWidget {
                   foreground: resultadoStyle.$3,
                 ),
                 _Badge(label: 'SIM', value: '${totais['sim'] ?? 0}'),
-                _Badge(label: 'NAO', value: '${totais['nao'] ?? 0}'),
+                _Badge(label: 'N\u00c3O', value: '${totais['nao'] ?? 0}'),
                 _Badge(label: 'ABST', value: '${totais['abstencao'] ?? 0}'),
                 _Badge(label: 'Presentes', value: '${presentes.length}'),
                 _Badge(label: 'Ausentes', value: '${ausentes.length}'),
@@ -2576,16 +3452,16 @@ class _RelatoriosView extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Sessoes',
+                  'Sess\u00f5es',
                   style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
                 ),
                 const SizedBox(height: 10),
                 if (sessoes.isEmpty)
-                  const Text('Nenhuma sessao encontrada.')
+                  const Text('Nenhuma sess\u00e3o encontrada.')
                 else
                   ...sessoes.map((sessao) {
                     final id = sessao['id']?.toString() ?? '';
-                    final titulo = sessao['titulo']?.toString() ?? 'Sem titulo';
+                    final titulo = sessao['titulo']?.toString() ?? 'Sem t\u00edtulo';
                     final data = sessao['data_sessao']?.toString() ?? '-';
                     final totalPautas = sessao['total_pautas']?.toString() ?? '0';
                     final totalVotacoes =
@@ -2598,7 +3474,7 @@ class _RelatoriosView extends StatelessWidget {
                       child: ListTile(
                         title: Text(titulo),
                         subtitle: Text(
-                          'Data: $data\nPautas: $totalPautas | Votacoes: $totalVotacoes | Presencas: $presencas',
+                          'Data: $data\nPautas: $totalPautas | Vota\u00e7\u00f5es: $totalVotacoes | Presen\u00e7as: $presencas',
                         ),
                         trailing: FilledButton(
                           onPressed: loadingSessaoDetalhe || id.isEmpty
@@ -2636,14 +3512,14 @@ class _SessaoDetalheCard extends StatelessWidget {
         child: Padding(
           padding: EdgeInsets.all(20),
           child: Text(
-            'Selecione uma sessao para ver o detalhamento.',
+            'Selecione uma sess\u00e3o para ver o detalhamento.',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
           ),
         ),
       );
     }
 
-    final titulo = sessaoDetalhe!['titulo']?.toString() ?? 'Sessao';
+    final titulo = sessaoDetalhe!['titulo']?.toString() ?? 'Sess\u00e3o';
     final data = sessaoDetalhe!['data_sessao']?.toString() ?? '-';
     final presencas = (sessaoDetalhe!['presencas'] as List?) ?? [];
     final pautas = (sessaoDetalhe!['pautas'] as List?) ?? [];
@@ -2662,7 +3538,7 @@ class _SessaoDetalheCard extends StatelessWidget {
             Text('Data: $data'),
             const SizedBox(height: 12),
             Text(
-              'Presencas (${presencas.length})',
+              'Presen\u00e7as (${presencas.length})',
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 6),
@@ -2703,9 +3579,9 @@ class _SessaoDetalheCard extends StatelessWidget {
                             (votacao['totais'] as Map<String, dynamic>?) ?? {};
                         return ListTile(
                           dense: true,
-                          title: Text('Votacao ${votacao['status'] ?? '-'}'),
+                          title: Text('Vota\u00e7\u00e3o ${votacao['status'] ?? '-'}'),
                           subtitle: Text(
-                            'SIM ${totais['sim'] ?? 0} | NAO ${totais['nao'] ?? 0} | ABS ${totais['abstencao'] ?? 0} | TOTAL ${totais['total'] ?? 0}',
+                            'SIM ${totais['sim'] ?? 0} | N\u00c3O ${totais['nao'] ?? 0} | ABS ${totais['abstencao'] ?? 0} | TOTAL ${totais['total'] ?? 0}',
                           ),
                         );
                       }),
@@ -2720,3 +3596,7 @@ class _SessaoDetalheCard extends StatelessWidget {
     );
   }
 }
+
+
+
+

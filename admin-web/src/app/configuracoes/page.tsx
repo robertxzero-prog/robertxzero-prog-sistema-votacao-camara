@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -57,14 +57,15 @@ export default function ConfiguracoesPage() {
   }
 
   return (
-    <main className="flex min-h-screen bg-slate-100">
+    <main className="admin-page">
       <Sidebar />
-      <section className="flex-1 p-8">
-        <h1 className="text-4xl font-black text-slate-900">Configurações</h1>
-        <p className="mt-2 text-slate-600">Ajustes operacionais da câmara.</p>
+      <section className="admin-content">
+        <div className="admin-container">
+        <h1 className="admin-title">Configurações</h1>
+        <p className="admin-subtitle">Ajustes operacionais da câmara.</p>
 
         <div className="mt-8 grid gap-6 md:grid-cols-2">
-          <article className="rounded-xl bg-white p-6 shadow">
+          <article className="card-shell p-6">
             <h2 className="text-xl font-black text-slate-900">Identidade da Câmara</h2>
             <p className="mt-2 text-slate-700">Defina nome oficial e brasão institucional.</p>
 
@@ -73,7 +74,7 @@ export default function ConfiguracoesPage() {
               type="text"
               value={nomeCamara}
               onChange={(e) => setNomeCamara(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-800"
+              className="mt-1 w-full rounded-xl border border-slate-300 px-4 py-3 text-slate-800"
               placeholder="Ex.: Câmara Municipal de Vitória do Jari"
             />
 
@@ -86,7 +87,7 @@ export default function ConfiguracoesPage() {
                   Sem
                 </div>
               )}
-              <label className="cursor-pointer rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+              <label className="btn btn-muted !px-4 !py-2.5">
                 Alterar brasão
                 <input
                   type="file"
@@ -95,17 +96,17 @@ export default function ConfiguracoesPage() {
                   onChange={(e) => alterarBrasao(e.target.files?.[0])}
                 />
               </label>
-              <button onClick={removerBrasao} className="rounded-lg bg-rose-600 px-3 py-2 text-sm font-semibold text-white hover:bg-rose-700">
+              <button onClick={removerBrasao} className="btn btn-danger !px-4 !py-2.5">
                 Remover
               </button>
             </div>
 
-            <button onClick={salvarIdentidadeCamara} className="mt-4 rounded-lg bg-blue-700 px-4 py-2 font-semibold text-white hover:bg-blue-800">
+            <button onClick={salvarIdentidadeCamara} className="mt-4 btn btn-primary">
               Salvar identidade
             </button>
           </article>
 
-          <article className="rounded-xl bg-white p-6 shadow">
+          <article className="card-shell p-6">
             <h2 className="text-xl font-black text-slate-900">Fila de oradores</h2>
             <label className="mt-4 flex items-center gap-2 text-slate-800">
               <input
@@ -120,18 +121,20 @@ export default function ConfiguracoesPage() {
             </label>
           </article>
 
-          <article className="rounded-xl bg-white p-6 shadow">
+          <article className="card-shell p-6">
             <h2 className="text-xl font-black text-slate-900">Acessos avançados</h2>
             <div className="mt-4 grid gap-2">
-              <Link href="/telao" className="rounded-lg bg-slate-100 px-3 py-2 font-semibold text-slate-800 hover:bg-slate-200">Abrir Telão</Link>
-              <Link href="/presidente" className="rounded-lg bg-slate-100 px-3 py-2 font-semibold text-slate-800 hover:bg-slate-200">Painel do Presidente</Link>
-              <Link href="/tablet" className="rounded-lg bg-slate-100 px-3 py-2 font-semibold text-slate-800 hover:bg-slate-200">Modo Tablet (Web)</Link>
-              <Link href="/votacao" className="rounded-lg bg-slate-100 px-3 py-2 font-semibold text-slate-800 hover:bg-slate-200">Teste de Votação</Link>
+              <Link href="/telao" className="btn btn-muted w-full justify-start">Abrir Telão</Link>
+              <Link href="/controle-da-sessao" className="btn btn-muted w-full justify-start">Controle da Sessão</Link>
+              <Link href="/tablet" className="btn btn-muted w-full justify-start">Modo Tablet (Web)</Link>
+              <Link href="/votacao" className="btn btn-muted w-full justify-start">Teste de Votação</Link>
             </div>
           </article>
+        </div>
         </div>
       </section>
     </main>
   );
 }
+
 

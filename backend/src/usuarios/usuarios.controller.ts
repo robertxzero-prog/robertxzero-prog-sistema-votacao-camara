@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -18,6 +19,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 
 import { extname } from 'path';
+import { mkdirSync } from 'fs';
 
 import { AuthGuard } from '@nestjs/passport';
 
@@ -83,7 +85,10 @@ export class UsuariosController {
   @UseInterceptors(
     FileInterceptor('foto', {
       storage: diskStorage({
-        destination: './uploads',
+        destination: (req, file, callback) => {
+          mkdirSync('./uploads', { recursive: true });
+          callback(null, './uploads');
+        },
 
         filename: (req, file, callback) => {
           const nomeArquivo =
@@ -104,6 +109,10 @@ export class UsuariosController {
     @Req() req: any,
     @UploadedFile() file: Express.Multer.File,
   ) {
+    if (!file?.filename) {
+      throw new BadRequestException('Arquivo de foto nao enviado.');
+    }
+
     return this.usuariosService.salvarFotoUsuario(
       id,
       file.filename,
@@ -118,5 +127,47 @@ export class UsuariosController {
     @Req() req: any,
   ) {
     return this.usuariosService.removerFotoUsuario(id, req.user);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Post(':id/logo-partido')
+  @UseInterceptors(
+    FileInterceptor('logo', {
+      storage: diskStorage({
+        destination: (req, file, callback) => {
+          mkdirSync('./uploads', { recursive: true });
+          callback(null, './uploads');
+        },
+        filename: (req, file, callback) => {
+          const nomeArquivo =
+            Date.now() +
+            '-' +
+            Math.round(Math.random() * 1e9);
+          callback(
+            null,
+            nomeArquivo + extname(file.originalname),
+          );
+        },
+      }),
+    }),
+  )
+  async uploadLogoPartido(
+    @Param('id') id: string,
+    @Req() req: any,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!file?.filename) {
+      throw new BadRequestException('Arquivo de logo nao enviado.');
+    }
+    return this.usuariosService.salvarLogoPartidoVereador(id, file.filename, req.user);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Delete(':id/logo-partido')
+  removerLogoPartido(
+    @Param('id') id: string,
+    @Req() req: any,
+  ) {
+    return this.usuariosService.removerLogoPartidoVereador(id, req.user);
   }
 }

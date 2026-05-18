@@ -82,10 +82,27 @@ export class VotacoesService {
       where: {
         id: pautaId,
       },
+      include: {
+        sessoes: true,
+      },
     });
 
     if (!pauta) {
       throw new NotFoundException('Pauta não encontrada.');
+    }
+
+    if (pauta.sessoes?.etapa_atual !== 'ORDEM_DO_DIA') {
+      throw new BadRequestException(
+        'A votacao so pode ser aberta durante a etapa Ordem do Dia.',
+      );
+    }
+
+    const regraQuorum = await this.calcularRegraQuorum(pauta.sessao_id);
+
+    if (!regraQuorum.quorum_atingido) {
+      throw new BadRequestException(
+        `Quorum insuficiente para abrir votacao. Presentes: ${regraQuorum.presentes}/${regraQuorum.quorum_minimo}.`,
+      );
     }
 
     let abertaPor = usuarioId;
@@ -375,16 +392,11 @@ export class VotacoesService {
 
   const totalVotos = votacao.votos.length;
 
-  const totalVereadores = 9;
-  const quorumMinimo = 5;
-
-  const presentes = await this.prisma.presencas.count({
-    where: {
-      sessao_id: votacao.pautas.sessao_id,
-    },
-  });
-
-  const ausentes = totalVereadores - presentes;
+  const regraQuorum = await this.calcularRegraQuorum(votacao.pautas.sessao_id);
+  const totalVereadores = regraQuorum.total_vereadores;
+  const quorumMinimo = regraQuorum.quorum_minimo;
+  const presentes = regraQuorum.presentes;
+  const ausentes = regraQuorum.ausentes;
 
   const tipoMaioria = votacao.pautas.tipo_maioria || 'SIMPLES';
 
@@ -395,10 +407,10 @@ export class VotacoesService {
     votosNecessarios = quorumMinimo;
     resultado = 'SEM_QUORUM';
   } else if (tipoMaioria === 'ABSOLUTA') {
-    votosNecessarios = 5;
+    votosNecessarios = quorumMinimo;
     resultado = votosSim >= votosNecessarios ? 'APROVADA' : 'REJEITADA';
   } else if (tipoMaioria === 'DOIS_TERCOS') {
-    votosNecessarios = 6;
+    votosNecessarios = Math.ceil((totalVereadores * 2) / 3);
     resultado = votosSim >= votosNecessarios ? 'APROVADA' : 'REJEITADA';
   } else {
     votosNecessarios = Math.floor(presentes / 2) + 1;
@@ -479,4 +491,34 @@ export class VotacoesService {
 
   return retorno;
 }
+
+  private async calcularRegraQuorum(sessaoId: string) {
+    const [presentes, totalVereadores] = await Promise.all([
+      this.prisma.presencas.count({
+        where: {
+          sessao_id: sessaoId,
+        },
+      }),
+      this.prisma.vereadores.count({
+        where: {
+          usuarios: {
+            ativo: true,
+          },
+          cadeiras: {
+            ativa: true,
+          },
+        },
+      }),
+    ]);
+
+    const quorumMinimo = Math.floor(totalVereadores / 2) + 1;
+
+    return {
+      presentes,
+      ausentes: Math.max(0, totalVereadores - presentes),
+      total_vereadores: totalVereadores,
+      quorum_minimo: quorumMinimo,
+      quorum_atingido: presentes >= quorumMinimo,
+    };
+  }
 }

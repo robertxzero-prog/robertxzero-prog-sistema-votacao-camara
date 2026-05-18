@@ -83,6 +83,19 @@ class ApiClient {
     return get('/auth/me');
   }
 
+  Future<Map<String, dynamic>?> configuracaoCamara() async {
+    try {
+      final data = await get('/configuracao/camara', authenticated: false);
+      final config = data['config'];
+      if (config is Map) {
+        return config.map((key, value) => MapEntry(key.toString(), value));
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<Map<String, dynamic>?> votacaoAtiva() async {
     try {
       final response = await _request('GET', '/votacoes/ativa');
@@ -102,6 +115,37 @@ class ApiClient {
       }
       rethrow;
     }
+  }
+
+  Future<Map<String, dynamic>?> sessaoAtiva() async {
+    try {
+      final response = await _request('GET', '/sessoes/ativa');
+      if (response.body == 'null') {
+        return null;
+      }
+
+      final data = _decodeMap(response);
+      if (data.isEmpty || data['id'] == null) {
+        return null;
+      }
+
+      return data;
+    } on ApiException catch (error) {
+      if (error.statusCode == 404) {
+        return null;
+      }
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> etapaSessao(String sessaoId) {
+    return get('/sessoes/$sessaoId/etapa');
+  }
+
+  Future<Map<String, dynamic>> solicitarFala(String sessaoId, String tipoFala) {
+    return post('/sessoes/$sessaoId/fila-oradores/solicitar', {
+      'tipo_fala': tipoFala,
+    });
   }
 
   Future<Map<String, dynamic>> confirmarPresenca(String sessaoId) {
@@ -180,7 +224,7 @@ class ApiClient {
   Future<Map<String, dynamic>> uploadMinhaFoto(String userId, String filePath) async {
     final token = await getToken();
     if (token == null || token.isEmpty) {
-      throw ApiException('Token nao encontrado.');
+      throw ApiException('Token n\u00e3o encontrado.');
     }
 
     final uri = Uri.parse('${AppConfig.apiBaseUrl}/usuarios/$userId/foto');
@@ -207,8 +251,8 @@ class ApiClient {
     return '${AppConfig.apiBaseUrl}/atas/votacao/$votacaoId/pdf';
   }
 
-  Future<Map<String, dynamic>> get(String path) async {
-    final response = await _request('GET', path);
+  Future<Map<String, dynamic>> get(String path, {bool authenticated = true}) async {
+    final response = await _request('GET', path, authenticated: authenticated);
     return _decodeMap(response);
   }
 
@@ -274,7 +318,7 @@ class ApiClient {
                 body: jsonEncode(body ?? {}),
               )
               .timeout(_timeout),
-          _ => throw ApiException('Metodo nao suportado: $method'),
+          _ => throw ApiException('M\u00e9todo n\u00e3o suportado: $method'),
         };
 
         if (response.statusCode >= 200 && response.statusCode < 300) {
@@ -293,7 +337,7 @@ class ApiClient {
       } on TimeoutException {
         lastError = ApiException('Tempo de resposta excedido ao falar com o servidor.');
       } on SocketException {
-        lastError = ApiException('Falha de rede. Verifique sua conexao.');
+        lastError = ApiException('Falha de rede. Verifique sua conex\u00e3o.');
       } catch (error) {
         lastError = error;
       }

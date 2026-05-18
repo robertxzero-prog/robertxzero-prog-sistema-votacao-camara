@@ -10,6 +10,13 @@ import { UpdateVereadorDto } from './dto/update-vereador.dto';
 export class UsuariosService {
   constructor(private prisma: PrismaService) {}
 
+  private normalizarFotoUrl(fotoUrl?: string | null) {
+    if (!fotoUrl) return fotoUrl || null;
+    const match = fotoUrl.match(/\/uploads\/([^/?#]+)/);
+    if (!match) return fotoUrl;
+    return this.montarFotoUrlPublica(match[1]);
+  }
+
   private async obterOuCriarCadeira(numero: number) {
     const n = Number(numero);
     if (!Number.isInteger(n) || n <= 0) {
@@ -59,6 +66,7 @@ export class UsuariosService {
           select: {
             id: true,
             partido: true,
+            partido_logo_url: true,
             cargo_mesa: true,
             cadeira_id: true,
             usuario_id: true,
@@ -84,10 +92,11 @@ export class UsuariosService {
       nome: usuario.nome,
       email: usuario.email,
       role: usuario.role,
-      foto_url: usuario.foto_url,
+      foto_url: this.normalizarFotoUrl(usuario.foto_url),
       ativo: usuario.ativo,
 
       partido: usuario.vereadores?.partido ?? '',
+      partido_logo_url: this.normalizarFotoUrl(usuario.vereadores?.partido_logo_url),
       cadeiraNumero: usuario.vereadores?.cadeiras?.numero ?? null,
       cargo_mesa: usuario.vereadores?.cargo_mesa ?? null,
 
@@ -95,6 +104,7 @@ export class UsuariosService {
         ? {
             id: usuario.vereadores.id,
             partido: usuario.vereadores.partido,
+            partido_logo_url: this.normalizarFotoUrl(usuario.vereadores.partido_logo_url),
             cargo_mesa: usuario.vereadores.cargo_mesa,
             cadeira_id: usuario.vereadores.cadeira_id,
             usuario_id: usuario.vereadores.usuario_id,
@@ -163,6 +173,7 @@ export class UsuariosService {
         usuario_id: usuario.id,
         cadeira_id: cadeira.id,
         partido: data.partido,
+        partido_logo_url: data.partido_logo_url || null,
         cargo_mesa: data.cargo_mesa || null,
       },
     });
@@ -259,6 +270,7 @@ export class UsuariosService {
       },
       data: {
         partido: data.partido,
+        partido_logo_url: data.partido_logo_url ?? vereador.partido_logo_url ?? null,
         cadeira_id: cadeira.id,
         cargo_mesa: data.cargo_mesa || null,
       },
@@ -434,6 +446,57 @@ export class UsuariosService {
       ok: true,
       mensagem: 'Foto removida com sucesso',
     };
+  }
+
+  async salvarLogoPartidoVereador(
+    usuarioId: string,
+    filename: string,
+    user: { userId?: string; sub?: string; role?: string },
+  ) {
+    const solicitanteId = user?.userId || user?.sub;
+    const role = (user?.role || '').toUpperCase();
+    if (role !== 'ADMIN' && solicitanteId !== usuarioId) {
+      return { ok: false, mensagem: 'Sem permissao para alterar este logo.' };
+    }
+
+    const vereador = await this.prisma.vereadores.findUnique({
+      where: { usuario_id: usuarioId },
+    });
+    if (!vereador) {
+      return { ok: false, mensagem: 'Vereador nao encontrado' };
+    }
+
+    const logoUrl = this.montarFotoUrlPublica(filename);
+    await this.prisma.vereadores.update({
+      where: { usuario_id: usuarioId },
+      data: { partido_logo_url: logoUrl },
+    });
+
+    return { ok: true, partido_logo_url: logoUrl };
+  }
+
+  async removerLogoPartidoVereador(
+    usuarioId: string,
+    user: { userId?: string; sub?: string; role?: string },
+  ) {
+    const solicitanteId = user?.userId || user?.sub;
+    const role = (user?.role || '').toUpperCase();
+    if (role !== 'ADMIN' && solicitanteId !== usuarioId) {
+      return { ok: false, mensagem: 'Sem permissao para remover este logo.' };
+    }
+
+    const vereador = await this.prisma.vereadores.findUnique({
+      where: { usuario_id: usuarioId },
+    });
+    if (!vereador) {
+      return { ok: false, mensagem: 'Vereador nao encontrado' };
+    }
+
+    await this.prisma.vereadores.update({
+      where: { usuario_id: usuarioId },
+      data: { partido_logo_url: null },
+    });
+    return { ok: true, mensagem: 'Logo do partido removido com sucesso' };
   }
 
   private montarFotoUrlPublica(filename: string) {

@@ -46,6 +46,23 @@ export class AuthService {
     return `${(email || '').toLowerCase()}|${ip || 'sem-ip'}`;
   }
 
+  private montarFotoUrlPublica(filename: string) {
+    const base =
+      process.env.PUBLIC_API_BASE_URL ||
+      process.env.BACKEND_PUBLIC_URL ||
+      'http://localhost:3000';
+    return `${base.replace(/\/$/, '')}/uploads/${filename}`;
+  }
+
+  private normalizarFotoUrl(fotoUrl?: string | null) {
+    if (!fotoUrl) return null;
+    const match = fotoUrl.match(/\/uploads\/([^/?#]+)/);
+    if (match?.[1]) {
+      return this.montarFotoUrlPublica(match[1]);
+    }
+    return fotoUrl;
+  }
+
   private verificarBloqueioLogin(email: string, ip?: string | null) {
     const limiteFalhas = Number(process.env.AUTH_MAX_FALHAS || 5);
     const janelaMinutos = Number(process.env.AUTH_JANELA_MINUTOS || 10);
@@ -446,12 +463,13 @@ export class AuthService {
         nome: usuario.nome,
         email: usuario.email,
         role: usuario.role,
-        foto_url: usuario.foto_url,
+        foto_url: this.normalizarFotoUrl(usuario.foto_url),
         twofa_enabled: !!usuario.twofa_enabled,
         vereador: usuario.vereadores
           ? {
               id: usuario.vereadores.id,
               partido: usuario.vereadores.partido,
+              partido_logo_url: this.normalizarFotoUrl(usuario.vereadores.partido_logo_url),
               cadeira: usuario.vereadores.cadeiras,
             }
           : null,
@@ -883,12 +901,13 @@ export class AuthService {
       nome: usuario.nome,
       email: usuario.email,
       role: usuario.role,
-      foto_url: usuario.foto_url,
+      foto_url: this.normalizarFotoUrl(usuario.foto_url),
       twofa_enabled: !!usuario.twofa_enabled,
       vereador: usuario.vereadores
         ? {
             id: usuario.vereadores.id,
             partido: usuario.vereadores.partido,
+            partido_logo_url: this.normalizarFotoUrl(usuario.vereadores.partido_logo_url),
             cadeira: usuario.vereadores.cadeiras,
           }
         : null,

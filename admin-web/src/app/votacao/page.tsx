@@ -149,7 +149,7 @@ export default function VotacaoPage() {
           </h1>
 
           <p className="mt-3 text-slate-600">
-            Aguarde o presidente abrir uma votação para uma pauta.
+            Aguarde o operador abrir uma votação no controle da sessão.
           </p>
 
           <button

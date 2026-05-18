@@ -18,6 +18,8 @@ export function CreateVereadorModal({
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('123456');
   const [partido, setPartido] = useState('');
+  const [logoPartido, setLogoPartido] = useState<File | null>(null);
+  const [logoPartidoPreview, setLogoPartidoPreview] = useState<string | null>(null);
   const [cadeiraNumero, setCadeiraNumero] = useState('');
   const [role, setRole] = useState<'VEREADOR' | 'PRESIDENTE'>('VEREADOR');
   const [cargoMesa, setCargoMesa] = useState<'PRESIDENTE' | 'VICE_PRESIDENTE' | 'SECRETARIO_GERAL' | ''>('');
@@ -35,7 +37,7 @@ export function CreateVereadorModal({
     setCarregando(true);
 
     try {
-      await api.post('/usuarios/vereador', {
+      const response = await api.post('/usuarios/vereador', {
         nome,
         email,
         senha,
@@ -45,10 +47,21 @@ export function CreateVereadorModal({
         cargo_mesa: cargoMesa || null,
       });
 
+      const usuarioId = response.data?.usuario?.id as string | undefined;
+      if (logoPartido && usuarioId) {
+        const formData = new FormData();
+        formData.append('logo', logoPartido);
+        await api.post(`/usuarios/${usuarioId}/logo-partido`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+      }
+
       setNome('');
       setEmail('');
       setSenha('123456');
       setPartido('');
+      setLogoPartido(null);
+      setLogoPartidoPreview(null);
       setCadeiraNumero('');
       setRole('VEREADOR');
       setCargoMesa('');
@@ -101,6 +114,52 @@ export function CreateVereadorModal({
             value={partido}
             onChange={(event) => setPartido(event.target.value)}
           />
+
+          <div className="rounded-lg border border-gray-300 p-3">
+            <p className="mb-2 text-sm font-semibold text-gray-700">Logo do partido (opcional)</p>
+            <div className="flex items-center gap-3">
+              {logoPartidoPreview ? (
+                <img
+                  src={logoPartidoPreview}
+                  alt="Logo do partido"
+                  className="h-12 w-12 rounded-md border border-gray-200 object-contain"
+                />
+              ) : (
+                <div className="h-12 w-12 rounded-md bg-gray-100 border border-gray-200" />
+              )}
+              <label className="cursor-pointer rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                Selecionar
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0] || null;
+                    setLogoPartido(file);
+                    if (!file) {
+                      setLogoPartidoPreview(null);
+                      return;
+                    }
+                    const reader = new FileReader();
+                    reader.onload = () => setLogoPartidoPreview(String(reader.result || ''));
+                    reader.readAsDataURL(file);
+                  }}
+                />
+              </label>
+              {logoPartidoPreview && (
+                <button
+                  type="button"
+                  className="rounded-md border border-rose-200 px-3 py-2 text-sm text-rose-600 hover:bg-rose-50"
+                  onClick={() => {
+                    setLogoPartido(null);
+                    setLogoPartidoPreview(null);
+                  }}
+                >
+                  Remover
+                </button>
+              )}
+            </div>
+          </div>
 
           <input
             type="number"
