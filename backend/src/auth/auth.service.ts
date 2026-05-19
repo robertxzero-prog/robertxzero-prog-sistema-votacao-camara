@@ -63,6 +63,48 @@ export class AuthService {
     return fotoUrl;
   }
 
+  private isMissingColumnError(error: any, columnName: string) {
+    return (
+      error?.code === 'P2022' &&
+      String(error?.meta?.column || '').includes(columnName)
+    );
+  }
+
+  private async carregarVereadorSeguro(usuarioId: string) {
+    try {
+      const vereador = await this.prisma.vereadores.findUnique({
+        where: { usuario_id: usuarioId },
+        include: { cadeiras: true },
+      });
+      if (!vereador) return null;
+      return {
+        id: vereador.id,
+        partido: vereador.partido,
+        partido_logo_url: this.normalizarFotoUrl(vereador.partido_logo_url),
+        cadeira: vereador.cadeiras,
+      };
+    } catch (error: any) {
+      if (!this.isMissingColumnError(error, 'vereadores.partido_logo_url')) {
+        throw error;
+      }
+      const vereadorFallback = await this.prisma.vereadores.findUnique({
+        where: { usuario_id: usuarioId },
+        select: {
+          id: true,
+          partido: true,
+          cadeiras: true,
+        },
+      });
+      if (!vereadorFallback) return null;
+      return {
+        id: vereadorFallback.id,
+        partido: vereadorFallback.partido,
+        partido_logo_url: null,
+        cadeira: vereadorFallback.cadeiras,
+      };
+    }
+  }
+
   private verificarBloqueioLogin(email: string, ip?: string | null) {
     const limiteFalhas = Number(process.env.AUTH_MAX_FALHAS || 5);
     const janelaMinutos = Number(process.env.AUTH_JANELA_MINUTOS || 10);
@@ -366,9 +408,6 @@ export class AuthService {
 
     const usuario = await this.prisma.usuarios.findUnique({
       where: { email },
-      include: {
-        vereadores: { include: { cadeiras: true } },
-      },
     });
 
     if (!usuario) {
@@ -456,6 +495,8 @@ export class AuthService {
       },
     });
 
+    const vereador = await this.carregarVereadorSeguro(usuario.id);
+
     return {
       token,
       usuario: {
@@ -465,14 +506,7 @@ export class AuthService {
         role: usuario.role,
         foto_url: this.normalizarFotoUrl(usuario.foto_url),
         twofa_enabled: !!usuario.twofa_enabled,
-        vereador: usuario.vereadores
-          ? {
-              id: usuario.vereadores.id,
-              partido: usuario.vereadores.partido,
-              partido_logo_url: this.normalizarFotoUrl(usuario.vereadores.partido_logo_url),
-              cadeira: usuario.vereadores.cadeiras,
-            }
-          : null,
+        vereador,
       },
     };
   }
@@ -534,7 +568,6 @@ export class AuthService {
 
     const usuario = await this.prisma.usuarios.findUnique({
       where: { id: usuarioId },
-      include: { vereadores: { include: { cadeiras: true } } },
     });
     if (!usuario || !usuario.ativo) {
       throw new UnauthorizedException('Usuario inativo ou nao encontrado');
@@ -896,6 +929,8 @@ export class AuthService {
     if (!usuario) throw new UnauthorizedException('Usuario nao encontrado');
     if (!usuario.ativo) throw new UnauthorizedException('Usuario inativo');
 
+    const vereador = await this.carregarVereadorSeguro(usuario.id);
+
     return {
       id: usuario.id,
       nome: usuario.nome,
@@ -903,14 +938,7 @@ export class AuthService {
       role: usuario.role,
       foto_url: this.normalizarFotoUrl(usuario.foto_url),
       twofa_enabled: !!usuario.twofa_enabled,
-      vereador: usuario.vereadores
-        ? {
-            id: usuario.vereadores.id,
-            partido: usuario.vereadores.partido,
-            partido_logo_url: this.normalizarFotoUrl(usuario.vereadores.partido_logo_url),
-            cadeira: usuario.vereadores.cadeiras,
-          }
-        : null,
+      vereador,
     };
   }
 }

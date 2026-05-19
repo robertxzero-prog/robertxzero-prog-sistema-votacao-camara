@@ -15,7 +15,7 @@ const supportEmail = "robertxzero@gmail.com";
 const supportPhone = "096991118360";
 const supportPhoneDisplay = "(96) 99111-8360";
 const supportWhatsappUrl = "https://wa.me/5596991118360";
-const appVersion = "v0.1.0";
+const appVersion = "v0.1.2";
 
 export default function Home() {
   const router = useRouter();
@@ -311,7 +311,21 @@ export default function Home() {
             <div className="form-reveal flex min-h-[520px] flex-col justify-start">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <span className="inline-flex rounded-full border border-[#bfe7dc] bg-[#eefbf7] px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-[#0b6b57]">
+                  <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3.5 py-1.5 text-[11px] font-black uppercase tracking-[0.12em] text-emerald-800 shadow-sm">
+                    <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-emerald-600 text-white">
+                      <svg
+                        viewBox="0 0 24 24"
+                        className="h-3 w-3"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="3"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
+                        <path d="m5 12 4 4 10-10" />
+                      </svg>
+                    </span>
                     Acesso liberado
                   </span>
                   <h2 className="mt-4 text-[34px] font-black leading-[0.96] text-[#07142f] sm:text-[42px] xl:text-[48px]">
@@ -650,5 +664,4 @@ export default function Home() {
     </main>
   );
 }
-
 
